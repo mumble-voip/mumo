@@ -37,26 +37,36 @@ class Config(object):
     """
 
     def __init__(self, filename = None, default = None):
-        if not filename or not default: return
-        cfg = ConfigParser.ConfigParser()
-        cfg.optionxform = str
-        cfg.read(filename)
+        if (filename and not default) or \
+            (not filename and not default): return
+        
+        if filename:
+            cfg = ConfigParser.ConfigParser()
+            cfg.optionxform = str
+            cfg.read(filename)
         
         for h,v in default.iteritems():
             if not v:
                 # Output this whole section as a list of raw key/value tuples
-                try:
-                    self.__dict__[h] = cfg.items(h)
-                except ConfigParser.NoSectionError:
+                if not filename:
                     self.__dict__[h] = []
+                else:
+                    try:
+                        self.__dict__[h] = cfg.items(h)
+                    except ConfigParser.NoSectionError:
+                        self.__dict__[h] = []
             else:
                 self.__dict__[h] = Config()
                 for name, val in v.iteritems():
                     conv, vdefault = val
-                    try:
-                        self.__dict__[h].__dict__[name] = conv(cfg.get(h, name))
-                    except (ValueError, ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+                    
+                    if not filename:
                         self.__dict__[h].__dict__[name] = vdefault
+                    else:
+                        try:
+                            self.__dict__[h].__dict__[name] = conv(cfg.get(h, name))
+                        except (ValueError, ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+                            self.__dict__[h].__dict__[name] = vdefault
 
 def x2bool(s):
     """Helper function to convert strings from the config to bool"""

@@ -104,6 +104,12 @@ testfallbacknum = asdas
             assert(cfg.somethingelse.bla == "test")
         finally:
             os.remove(path)
+            
+    def testLoadDefault(self):
+        cfg = Config(default=self.cfg_default)
+        assert(cfg.world.domination == False)
+        assert(cfg.somethingelse.bla == "test")
+        assert(cfg.world.somenum == 0)
 
 
 if __name__ == "__main__":

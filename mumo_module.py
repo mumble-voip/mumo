@@ -43,6 +43,8 @@ class MumoModule(Worker):
             # If we are passed a string expect a config file there
             if configuration:
                 self.__cfg = Config(configuration, self.default_config)
+            elif self.default_config:
+                self.__cfg = Config(default = self.default_config)
             else:
                 self.__cfg = None
         else:

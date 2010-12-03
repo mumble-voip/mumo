@@ -44,6 +44,7 @@ mumo
 [modules]
 mod_dir = /usr/sbin/modules/
 cfg_dir = /etc/modules-enabled/
+timeout = 2
 
 [Ice]
 ip = 127.0.0.1

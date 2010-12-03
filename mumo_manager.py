@@ -31,6 +31,7 @@
 
 import Queue
 from worker import Worker, local_thread, local_thread_blocking
+from config import Config
 import sys
 import os
 
@@ -47,18 +48,22 @@ class FailedLoadModuleInitializationException(FailedLoadModuleException):
     pass
 
 def debug_log(fu, enable = True):
-    def new_fu(*args, **kwargs):
-        self = args[0]
-        log = self.log()
-        skwargs = [','.join(['%s=%s' % (karg,repr(arg)) for karg, arg in kwargs])]
-        sargs = [','.join([str(arg) for arg in args[1:]])] + '' if not skwargs else (',' + skwargs)
-            
-        call = "%s(%s)" % (fu.__name__, sargs)
-        log.debug()
-        res = fu(*args, **kwargs)
-        log.debug("%s -> %s", call, repr(res))
-        return res
-    return new_fu if enable else fu
+    def new_dec(fu):
+        def new_fu(*args, **kwargs):
+            self = args[0]
+            log = self.log()
+            skwargs = ','.join(['%s=%s' % (karg,repr(arg)) for karg, arg in kwargs])
+            sargs = ','.join([str(arg) for arg in args[1:]]) + '' if not skwargs else (',' + str(skwargs))
+                
+            call = "%s(%s)" % (fu.__name__, sargs)
+            log.debug(call)
+            res = fu(*args, **kwargs)
+            log.debug("%s -> %s", call, repr(res))
+            return res
+        return new_fu if enable else fu
+    return new_dec
+
+    
 
 debug_me = True
 
@@ -80,7 +85,7 @@ class MumoManagerRemote(object):
     def getQueue(self):
         return self.__queue
     
-    def subscribeMetaCallbacks(self, handler, servers = MumoManagerRemote.SERVERS_ALL):
+    def subscribeMetaCallbacks(self, handler, servers = SERVERS_ALL):
         """
         Subscribe to meta callbacks. Subscribes the given handler to the following
         callbacks:
@@ -94,7 +99,7 @@ class MumoManagerRemote(object):
         """
         return self.__master.subscribeMetaCallbacks(self.__queue, handler, servers)
     
-    def unsubscribeMetaCallbacks(self, handler, servers = MumoManagerRemote.SERVERS_ALL):
+    def unsubscribeMetaCallbacks(self, handler, servers = SERVERS_ALL):
         """
         Unsubscribe from meta callbacks. Unsubscribes the given handler from callbacks
         for the given servers.
@@ -105,7 +110,7 @@ class MumoManagerRemote(object):
         """
         return self.__master.unscubscribeMetaCallbacks(self.__queue, handler, servers)
     
-    def subscribeServerCallbacks(self, handler, servers = MumoManagerRemote.SERVERS_ALL):
+    def subscribeServerCallbacks(self, handler, servers = SERVERS_ALL):
         """
         Subscribe to server callbacks. Subscribes the given handler to the following
         callbacks:
@@ -123,7 +128,7 @@ class MumoManagerRemote(object):
         """
         return self.__master.subscribeServerCallbacks(self.__queue, handler, servers)
     
-    def unsubscribeServerCallbacks(self, handler, servers = MumoManagerRemote.SERVERS_ALL):
+    def unsubscribeServerCallbacks(self, handler, servers = SERVERS_ALL):
         """
         Unsubscribe from server callbacks. Unsubscribes the given handler from callbacks
         for the given servers.
@@ -134,7 +139,7 @@ class MumoManagerRemote(object):
         """
         return self.__master.unsubscribeServerCallbacks(self.__queue, handler, servers)
     
-    def subscribeContextCallbacks(self, handler, servers = MumoManagerRemote.SERVERS_ALL):
+    def subscribeContextCallbacks(self, handler, servers = SERVERS_ALL):
         """
         Subscribe to context callbacks. Subscribes the given handler to the following
         callbacks:
@@ -147,7 +152,7 @@ class MumoManagerRemote(object):
         """
         return self.__master.subscribeContextCallbacks(self.__queue, handler, servers)
     
-    def unsubscribeContextCallbacks(self, handler, servers = MumoManagerRemote.SERVERS_ALL):
+    def unsubscribeContextCallbacks(self, handler, servers = SERVERS_ALL):
         """
         Unsubscribe from context callbacks. Unsubscribes the given handler from callbacks
         for the given servers.
@@ -162,8 +167,12 @@ class MumoManagerRemote(object):
     
 class MumoManager(Worker):
     MAGIC_ALL = -1
+
+    cfg_default = {'modules':{'mod_dir':(str, "modules/"),
+                              'cfg_dir':(str, "modules-enabled/"),
+                              'timeout':(int, 2)}}
     
-    def __init__(self, cfg):
+    def __init__(self, cfg = Config(default = cfg_default)):
         Worker.__init__(self, "MumoManager")
         self.queues = {} # {queue:module}
         self.modules = {} # {name:module}
@@ -285,7 +294,7 @@ class MumoManager(Worker):
         if not names:
             # If no names are given load all modules that have a configuration in the cfg_dir
             if not os.path.isdir(self.cfg.modules.cfg_dir):
-                msg = "Module directory '%s' not found" % self.cfg.mumo.mod_dir
+                msg = "Module directory '%s' not found" % self.cfg.modules.mod_dir
                 self.log().error(msg)
                 raise FailedLoadModuleImportException(msg)
             
@@ -356,12 +365,12 @@ class MumoManager(Worker):
             raise FailedLoadModuleConfigException(msg)
         
         # Make sure the module directory is in our python path and exists
-        if not self.cfg.mumo.mod_dir in sys.path:
-            if not os.path.isdir(self.cfg.mumo.mod_dir):
-                msg = "Module directory '%s' not found" % self.cfg.mumo.mod_dir
+        if not self.cfg.modules.mod_dir in sys.path:
+            if not os.path.isdir(self.cfg.modules.mod_dir):
+                msg = "Module directory '%s' not found" % self.cfg.modules.mod_dir
                 log.error(msg)
                 raise FailedLoadModuleImportException(msg)
-            sys.path.append(self.cfg.mumo.mod_dir)
+            sys.path.append(self.cfg.modules.mod_dir)
     
         # Import the module and instanciate it
         try:

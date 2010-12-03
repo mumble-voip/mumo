@@ -33,6 +33,8 @@ import unittest
 import Queue
 from mumo_manager import MumoManager, MumoManagerRemote
 from mumo_module import MumoModule
+import logging
+from threading import Event
 
 
 class MumoManagerTest(unittest.TestCase):
@@ -40,45 +42,73 @@ class MumoManagerTest(unittest.TestCase):
         class MyModule(MumoModule):
             def __init__(self, name, manager, configuration = None):
                 MumoModule.__init__(self, name, manager, configuration)
-                self.was_called = False
-                self.par1 = None
-                self.par2 = None
-                self.par3 = None
                 
-            def last_call(self):
-                ret = (self.was_called, self.par1, self.par2, self.par3)
-                self.was_called = False
-                return ret
-                
-            def call_me(self, par1, par2 = None, par3 = None):
-                self.was_called = True
-                self.par1 = par1
-                self.par2 = par2
-                self.par3 = par3
-                
-        self.man = MumoManager()
-        self.man.start()
+                self.estarted = Event()
+                self.estopped = Event()
+                self.econnected = Event()
+                self.edisconnected = Event()
+            
+            def onStart(self):
+                self.estarted.set()
+            
+            def onStop(self):
+                self.estopped.set()
+            
+            def connected(self):
+                self.econnected.set()
+            
+            def disconnected(self):
+                self.edisconnected.set()
         
+        self.mymod = MyModule
+
         class conf(object):
             pass # Dummy class
         
-        cfg = conf()
-        cfg.test = 10
-        
-        self.mod = self.man.loadModuleCls("MyModule", MyModule, cfg)
-        self.man.startModules()
-        
+        self.cfg = conf()
+        self.cfg.test = 10
 
+    #
+    #--- Helpers for independent test env creation
+    #
+    def up(self):
+        man = MumoManager()
+        man.start()
+
+        mod = man.loadModuleCls("MyModule", self.mymod, self.cfg)
+        man.startModules()
+        
+        return (man, mod)
+    
+    def down(self, man, mod):
+        man.stopModules()
+        man.stop()
+        man.join(timeout=1)
+    
+    #
+    #--- Tests
+    #
+    def testModuleStarted(self):
+        man, mod = self.up()
+        
+        mod.estarted.wait(timeout=1)
+        assert(mod.estarted.is_set())
+        
+        self.down(man, mod)
+    
+    def testModuleStopStart(self):
+        man ,mod = self.up()
+        
+        tos = ["MyModule"]
+        self.assertEquals(list(man.stopModules(tos).iterkeys()), tos)
+        mod.estopped.wait(timeout=1)
+        assert(mod.estopped.is_set())
+        
+        self.down(man, mod)
 
     def tearDown(self):
-        self.man.stopModules()
-        self.man.stop()
-        self.man.join(timeout=2)
-
-
-    def testName(self):
         pass
-
+        
 
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
