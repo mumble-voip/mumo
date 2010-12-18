@@ -213,18 +213,93 @@ class MumoManager(Worker):
         @param kwargs: Keyword arguments for the function
         """   
         # Announce to all handlers registered to all events
-        for queue, handlers in mdict[self.MAGIC_ALL].iteritems():
-            for handler in handlers:
-                self.__call_remote(queue, handler, args, kwargs)
+        try:
+            for queue, handlers in mdict[self.MAGIC_ALL].iteritems():
+                for handler in handlers:
+                    self.__call_remote(queue, handler, function, args, kwargs)
+        except KeyError:
+            # No handler registered for MAGIC_ALL
+            pass
                 
         # Announce to all handlers of the given serverlist
         for server in servers:
-            for queue, handler in mdict[server].iteritems():
-                self.__call_remote(queue, handler, args, kwargs)
+            try:
+                for queue, handler in mdict[server].iteritems():
+                    self.__call_remote(queue, handler, function, args, kwargs)
+            except KeyError:
+                # No handler registered for that server
+                pass
         
-    def __call_remote(self, queue, handler, *args, **kwargs):
-        queue.put((None, handler, args, kwargs))
+    def __call_remote(self, queue, handler, function, *args, **kwargs):
+        try:
+            func = getattr(handler, function) # Find out what to call on target
+        except AttributeError, e:
+            mod = self.queues.get(queue, None)
+            myname = ""
+            for name, mymod in self.modules.iteritems():
+                if mod == mymod:
+                    myname = name
+            if myname:
+                self.log.error("Handler class registered by module '%s' does not handle function '%s'. Call failed.", myname, function)
+            else:
+                self.log().exception(e)
+        queue.put((None, func, args, kwargs))
     
+    #
+    #-- Module multiplexing functionality
+    #
+    
+    @local_thread
+    def announceConnected(self):
+        """
+        Call connected handler on all handlers
+        """
+        for queue, module in self.queues.iteritems():
+            self.__call_remote(queue, module, "connected")
+            
+    @local_thread
+    def announceDisconnected(self):
+        """
+        Call disconnected handler on all handlers
+        """
+        for queue, module in self.queues.iteritems():
+            self.__call_remote(queue, module, "disconnected")
+
+    @local_thread
+    def announceMeta(self, servers, function, *args, **kwargs):
+        """
+        Call a function on the meta handlers
+        
+        @param servers Servers to announce to
+        @param function Name of the function to call on the handler
+        @param args List of arguments
+        @param kwargs List of keyword arguments
+        """
+        self.__announce_to_dict(self.metaCallbacks, servers, function, *args, **kwargs)
+        
+    @local_thread
+    def announceServer(self, servers, function, *args, **kwargs):
+        """
+        Call a function on the server handlers
+        
+        @param servers Servers to announce to
+        @param function Name of the function to call on the handler
+        @param args List of arguments
+        @param kwargs List of keyword arguments
+        """
+        self.__announce_to_dict(self.serverCallbacks, servers, function, *args, **kwargs)
+        
+    @local_thread
+    def announceContext(self, servers, function, *args, **kwargs):
+        """
+        Call a function on the context handlers
+        
+        @param servers Servers to announce to
+        @param function Name of the function to call on the handler
+        @param args List of arguments
+        @param kwargs List of keyword arguments
+        """
+        self.__announce_to_dict(self.serverCallbacks, servers, function, *args, **kwargs)
     #
     #--- Module self management functionality
     #

@@ -33,12 +33,15 @@ import unittest
 import Queue
 from mumo_manager import MumoManager, MumoManagerRemote
 from mumo_module import MumoModule
+from logging import basicConfig, ERROR
 import logging
 from threading import Event
 
 
 class MumoManagerTest(unittest.TestCase):
     def setUp(self):
+        basicConfig(level = ERROR)
+        
         class MyModule(MumoModule):
             def __init__(self, name, manager, configuration = None):
                 MumoModule.__init__(self, name, manager, configuration)
@@ -47,6 +50,10 @@ class MumoManagerTest(unittest.TestCase):
                 self.estopped = Event()
                 self.econnected = Event()
                 self.edisconnected = Event()
+                
+                self.emeta = Event()
+                self.econtext = Event()
+                self.eserver = Event()
             
             def onStart(self):
                 self.estarted.set()
@@ -55,10 +62,26 @@ class MumoManagerTest(unittest.TestCase):
                 self.estopped.set()
             
             def connected(self):
+                man = self.manager()
+                man.subscribeMetaCallbacks(self)
+                man.subscribeServerCallbacks(self)
+                man.subscribeContextCallbacks(self)
                 self.econnected.set()
             
             def disconnected(self):
                 self.edisconnected.set()
+                
+            def metaCallMe(self, arg1, arg2):
+                if arg1 == "arg1" and arg2 == "arg2":
+                    self.emeta.set()
+                    
+            def contextCallMe(self, arg1, arg2):
+                if arg1 == "arg1" and arg2 == "arg2":
+                    self.econtext.set()
+                    
+            def serverCallMe(self, arg1, arg2):
+                if arg1 == "arg1" and arg2 == "arg2":
+                    self.eserver.set()
         
         self.mymod = MyModule
 
@@ -106,6 +129,39 @@ class MumoManagerTest(unittest.TestCase):
         
         self.down(man, mod)
 
+    def testModuleConnectAndDisconnect(self):
+        man, mod = self.up()
+        
+        man.announceConnected()
+        mod.econnected.wait(timeout=1)
+        assert(mod.econnected.is_set())
+        man.announceDisconnected()
+        mod.edisconnected.wait(timeout=1)
+        assert(mod.edisconnected.is_set())
+        
+        self.down(man, mod)
+        
+    def testMetaCallback(self):
+        man, mod = self.up()
+        man.announceConnected()
+        man.announceMeta([], "metaCallMe", ["arg1"], {"arg2":"arg2"})
+        man.announceDisconnected()
+        self.down(man, mod)
+    
+    def testContextCallback(self):
+        man, mod = self.up()
+        man.announceConnected()
+        man.announceContext([], "contextCallMe", ["arg1"], {"arg2":"arg2"})
+        man.announceDisconnected()
+        self.down(man, mod)
+    
+    def testServerCallback(self):
+        man, mod = self.up()
+        man.announceConnected()
+        man.announceServer([], "serverCallMe", ["arg1"], {"arg2":"arg2"})
+        man.announceDisconnected()
+        self.down(man, mod)
+        
     def tearDown(self):
         pass
         
