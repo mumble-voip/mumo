@@ -30,7 +30,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
-from config import Config, x2bool
+from config import Config, x2bool, commaSeperatedIntegers, commaSeperatedStrings
 from tempfile import mkstemp
 import os
 import re
@@ -96,6 +96,13 @@ value = True
         assert(x2bool("1") == True)
         assert(x2bool("10") == False)
         assert(x2bool("notabool") == False)
+        
+    def testCommaSeperatedIntegers(self):
+        assert(commaSeperatedIntegers(" 1,2 , 333 ") == [1,2,333])
+        self.assertRaises(ValueError, commaSeperatedIntegers, "1,2,a")
+    
+    def testCommaSeperatedStrings(self):
+        assert(commaSeperatedStrings("Bernd, the, bred !") == ["Bernd", "the", "bred !"])
         
     def testConfig(self):
         path = create_file(self.cfg_content)

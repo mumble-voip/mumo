@@ -87,9 +87,25 @@ class Config(object):
                             self.__dict__[section].__dict__[name] = vdefault
 
 def x2bool(s):
-    """Helper function to convert strings from the config to bool"""
+    """
+    Helper function to convert strings from the config to bool
+    """
     if isinstance(s, bool):
         return s
     elif isinstance(s, basestring):
         return s.lower() in ['1', 'true']
     raise ValueError()
+
+def commaSeperatedIntegers(s):
+    """
+    Helper function to convert a string from the config
+    containing comma seperated integers into a list of integers
+    """
+    return map(int, s.split(','))
+
+def commaSeperatedStrings(s):
+    """
+    Helper function to convert a string from the config
+    containing comma seperated strings into a list of strings
+    """
+    return map(str.strip, s.split(','))

@@ -29,7 +29,11 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from config import Config, x2bool
+from config import (Config,
+                    x2bool,
+                    commaSeperatedIntegers,
+                    commaSeperatedStrings)
+
 from worker import Worker
 
 class MumoModule(Worker):

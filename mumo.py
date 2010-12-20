@@ -32,7 +32,9 @@
 import sys
 import Ice
 import logging
-from config import Config, x2bool
+from config import (Config,
+                    x2bool,
+                    commaSeperatedIntegers)
 
 from threading  import Timer
 from optparse   import OptionParser
@@ -57,7 +59,7 @@ default.update({'ice':(('host', str, '127.0.0.1'),
                       ('watchdog', int, 30)),
                       
                'iceraw':None,
-               'murmur':(('servers', lambda x:map(int, x.split(',')), []),),
+               'murmur':(('servers', commaSeperatedIntegers, []),),
                'log':(('level', int, logging.DEBUG),
                       ('file', str, 'mumo.log'))})
 
