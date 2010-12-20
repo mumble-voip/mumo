@@ -34,32 +34,28 @@ from mumo_module import (x2bool,
                          logModFu)
     
 class test(MumoModule):
-    default_config = {'testing':{'tvar': (int , 1),
-                                 'novar': (str, 'no bernd')}}
+    default_config = {'testing':(('tvar', int , 1),
+                                 ('novar', str, 'no bernd'))}
     
-    def __init__(self, cfg_file, manager):
-        MumoModule.__init__(self, "test", manager, cfg_file)
+    def __init__(self, name, manager, configuration = None):
+        MumoModule.__init__(self, name, manager, configuration)
         log = self.log()
         cfg = self.cfg()
         log.debug("tvar: %s", cfg.testing.tvar)
         log.debug("novar: %s", cfg.testing.novar)
-
-    @logModFu
-    def unload(self):
-        pass
     
     @logModFu
     def connected(self):
         manager = self.manager()
         log = self.log()
         log.debug("Ice connected, register for everything out there")
-        manager.enlistMetaCallbackHandler(self)
-        manager.enlistServerCallbackHandler(self, manager.SERVER_ALL_TRACK)
-        manager.enlistServerContextCallbackHandler(self, manager.SERVER_ALL_TRACK)
+        manager.subscribeMetaCallbacks(self)
+        manager.subscribeServerCallbacks(self, manager.SERVERS_ALL)
+        manager.subscribeContextCallbacks(self, manager.SERVERS_ALL)
     
     @logModFu
     def disconnected(self):
-        self.log().debug("Ice list")
+        self.log().debug("Ice disconnected")
     #
     #--- Meta callback functions
     #

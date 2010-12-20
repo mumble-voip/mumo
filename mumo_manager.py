@@ -168,9 +168,9 @@ class MumoManagerRemote(object):
 class MumoManager(Worker):
     MAGIC_ALL = -1
 
-    cfg_default = {'modules':{'mod_dir':(str, "modules/"),
-                              'cfg_dir':(str, "modules-enabled/"),
-                              'timeout':(int, 2)}}
+    cfg_default = {'modules':(('mod_dir', str, "modules/"),
+                              ('cfg_dir', str, "modules-enabled/"),
+                              ('timeout', int, 2))}
     
     def __init__(self, cfg = Config(default = cfg_default)):
         Worker.__init__(self, "MumoManager")
@@ -375,9 +375,9 @@ class MumoManager(Worker):
             
             names = []
             for f in os.listdir(self.cfg.modules.cfg_dir):
-                if os.path.isfile(f):
+                if os.path.isfile(self.cfg.modules.cfg_dir + f):
                     base, ext = os.path.splitext(f)
-                    if not ext or ext.tolower() == ".ini" or ext.tolower == ".conf":
+                    if not ext or ext.lower() == ".ini" or ext.lower() == ".conf":
                         names.append(base)
             
         for name in names:
@@ -404,7 +404,13 @@ class MumoManager(Worker):
         modqueue = Queue.Queue()
         modmanager = MumoManagerRemote(self, name, modqueue)
         
-        modinst = modcls(name, modmanager, module_cfg)
+        try:
+            modinst = modcls(name, modmanager, module_cfg)
+        except Exception, e:
+            msg = "Module '%s' failed to initialize" % name
+            log.error(msg)
+            log.exception(e)
+            raise FailedLoadModuleInitializationException(msg)
         
         # Remember it
         self.modules[name] = modinst
@@ -445,7 +451,7 @@ class MumoManager(Worker):
                 msg = "Module directory '%s' not found" % self.cfg.modules.mod_dir
                 log.error(msg)
                 raise FailedLoadModuleImportException(msg)
-            sys.path.append(self.cfg.modules.mod_dir)
+            sys.path.insert(0, self.cfg.modules.mod_dir)
     
         # Import the module and instanciate it
         try:
@@ -463,7 +469,9 @@ class MumoManager(Worker):
             except AttributeError:
                 modcls = getattr(mod, name)
         except AttributeError:
-            raise FailedLoadModuleInitializationException("Module does not contain required class %s" % name)
+            msg = "Module does not contain required class '%s'" % name
+            log.error(msg)
+            raise FailedLoadModuleInitializationException(msg)
 
         return self._loadModuleCls_noblock(name, modcls, confpath)
             

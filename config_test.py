@@ -55,11 +55,11 @@ somenum = 10
 testfallbacknum = asdas
 """
     
-    cfg_default = {'world':{'domination':(x2bool, False),
-                            'somestr':(str, "fail"),
-                            'somenum':(int, 0),
-                            'somenumtest':(int, 1)},
-                   'somethingelse':{'bla':(str, "test")}}
+    cfg_default = {'world':(('domination', x2bool, False),
+                           ('somestr', str, "fail"),
+                           ('somenum', int, 0),
+                           ('somenumtest', int, 1)),
+                   'somethingelse':(('bla', str, "test"),)}
 
     def setUp(self):
         pass

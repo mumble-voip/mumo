@@ -57,8 +57,7 @@ class Config(object):
                         self.__dict__[h] = []
             else:
                 self.__dict__[h] = Config()
-                for name, val in v.iteritems():
-                    conv, vdefault = val
+                for name, conv, vdefault in v:
                     
                     if not filename:
                         self.__dict__[h].__dict__[name] = vdefault
