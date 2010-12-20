@@ -30,6 +30,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import ConfigParser
+import types
 
 class Config(object):
     """
@@ -40,32 +41,50 @@ class Config(object):
         if (filename and not default) or \
             (not filename and not default): return
         
+        sections = set(default.iterkeys())
         if filename:
             cfg = ConfigParser.ConfigParser()
             cfg.optionxform = str
             cfg.read(filename)
-        
-        for h,v in default.iteritems():
-            if not v:
+            sections.update(cfg.sections())
+            
+        for section in sections:
+            if type(section) == types.FunctionType: continue
+            
+            match = None
+            for default_section in default.iterkeys():
+                try:
+                    if section == default_section or \
+                        (type(default_section) == types.FunctionType and default_section(section)):
+                        match = default_section
+                        break
+                except ValueError:
+                    continue
+                
+            if match == None:
+                continue
+
+            optiondefaults = default[match]
+
+            if not optiondefaults:
                 # Output this whole section as a list of raw key/value tuples
                 if not filename:
-                    self.__dict__[h] = []
+                    self.__dict__[section] = []
                 else:
                     try:
-                        self.__dict__[h] = cfg.items(h)
+                        self.__dict__[section] = cfg.items(section)
                     except ConfigParser.NoSectionError:
-                        self.__dict__[h] = []
+                        self.__dict__[section] = []
             else:
-                self.__dict__[h] = Config()
-                for name, conv, vdefault in v:
-                    
+                self.__dict__[section] = Config()
+                for name, conv, vdefault in optiondefaults:
                     if not filename:
-                        self.__dict__[h].__dict__[name] = vdefault
+                        self.__dict__[section].__dict__[name] = vdefault
                     else:
                         try:
-                            self.__dict__[h].__dict__[name] = conv(cfg.get(h, name))
+                            self.__dict__[section].__dict__[name] = conv(cfg.get(section, name))
                         except (ValueError, ConfigParser.NoSectionError, ConfigParser.NoOptionError):
-                            self.__dict__[h].__dict__[name] = vdefault
+                            self.__dict__[section].__dict__[name] = vdefault
 
 def x2bool(s):
     """Helper function to convert strings from the config to bool"""

@@ -33,6 +33,7 @@ import unittest
 from config import Config, x2bool
 from tempfile import mkstemp
 import os
+import re
 
 def create_file(content = None):
     """
@@ -53,12 +54,18 @@ domination = True
 somestr = Blabla
 somenum = 10
 testfallbacknum = asdas
+[Server_10]
+value = False
+[Server_9]
+[Server_2]
+value = True
 """
     
     cfg_default = {'world':(('domination', x2bool, False),
                            ('somestr', str, "fail"),
                            ('somenum', int, 0),
                            ('somenumtest', int, 1)),
+                    (lambda x: re.match("Server_\d+",x)):(('value', x2bool, True),),
                    'somethingelse':(('bla', str, "test"),)}
 
     def setUp(self):
@@ -102,6 +109,9 @@ testfallbacknum = asdas
             assert(cfg.world.somenum == 10)
             self.assertRaises(AttributeError, getattr, cfg.world, "testfallbacknum")
             assert(cfg.somethingelse.bla == "test")
+            assert(cfg.Server_10.value == False)
+            assert(cfg.Server_2.value == True)
+            assert(cfg.Server_9.value == True)
         finally:
             os.remove(path)
             
