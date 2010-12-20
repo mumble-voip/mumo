@@ -136,7 +136,7 @@ def do_main_program():
                     sid = server.id()
                     if not cfg.murmur.servers or sid in cfg.murmur.servers:
                         info('Setting callbacks for virtual server %d', sid)
-                        servercbprx = self.adapter.addWithUUID(serverCallback(self.manager, sid))
+                        servercbprx = self.adapter.addWithUUID(serverCallback(self.manager, server, sid))
                         servercb = Murmur.ServerCallbackPrx.uncheckedCast(servercbprx)
                         server.addCallback(servercb)
                         
@@ -159,7 +159,7 @@ def do_main_program():
                 return False
     
             self.connected = True
-            self.manager.announceConnected()
+            self.manager.announceConnected(self.meta)
             return True
         
         def checkConnection(self):
@@ -256,7 +256,7 @@ def do_main_program():
             if not cfg.murmur.servers or sid in cfg.murmur.servers:
                 info('Setting authenticator for virtual server %d', server.id())
                 try:
-                    servercbprx = self.app.adapter.addWithUUID(serverCallback(self.app.manager, sid))
+                    servercbprx = self.app.adapter.addWithUUID(serverCallback(self.app.manager, server, sid))
                     servercb = Murmur.ServerCallbackPrx.uncheckedCast(servercbprx)
                     server.addCallback(servercb)
                     
@@ -301,45 +301,53 @@ def do_main_program():
             
     
     def forwardServer(fu):
-        def new_fu(*args, **kwargs):
-            self = args[0]
-            self.manager.announceServer([self.sid], fu.__name__, *args, **kwargs)
+        def new_fu(self, *args, **kwargs):
+            self.manager.announceServer(self.sid, fu.__name__, self.server, *args, **kwargs)
         return new_fu
 
     class serverCallback(Murmur.ServerCallback):
-        def __init__(self, manager, sid):
+        def __init__(self, manager, server, sid):
             Murmur.ServerCallback.__init__(self)
             self.manager = manager
             self.sid = sid
-        
+            self.server = server
+
+        @checkSecret
         @forwardServer
         def userStateChanged(self, u, current=None): pass
+        @checkSecret
         @forwardServer
         def userDisconnected(self, u, current=None): pass
+        @checkSecret
         @forwardServer
         def userConnected(self, u, current=None): pass
+        @checkSecret
         @forwardServer
         def channelCreated(self, c, current=None): pass 
+        @checkSecret
         @forwardServer
         def channelRemoved(self, c, current=None): pass
+        @checkSecret
         @forwardServer
         def channelStateChanged(self, c, current=None): pass
     
     class contextCallback(Murmur.ServerContextCallback):
-        def __init__(self, manager, sid):
+        def __init__(self, manager, server, sid):
             Murmur.ServerContextCallback.__init__(self)
             self.manager = manager
+            self.server = server
             self.sid = sid
         
+        @checkSecret
         def contextAction(self, action, p, session, chanid, current=None):
-            self.manager.announceContext([self.sid], "contextAction", action, p, session, chanid, current)
+            self.manager.announceContext(self.sid, "contextAction", self.server, action, p, session, chanid, current)
 
     #
     #--- Start of moderator
     #
     info('Starting mumble moderator')
     debug('Initializing manager')
-    manager = MumoManager()
+    manager = MumoManager(Murmur)
     manager.start()
     manager.loadModules()
     manager.startModules()

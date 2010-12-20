@@ -47,7 +47,7 @@ class FailedLoadModuleImportException(FailedLoadModuleException):
 class FailedLoadModuleInitializationException(FailedLoadModuleException):
     pass
 
-def debug_log(fu, enable = True):
+def debug_log(enable = True):
     def new_dec(fu):
         def new_fu(*args, **kwargs):
             self = args[0]
@@ -163,6 +163,17 @@ class MumoManagerRemote(object):
         """
         return self.__master.unsubscribeContextCallbacks(self.__queue, handler, servers)
     
+    def getMurmurModule(self):
+        """
+        Returns the Murmur module generated from the slice file
+        """
+        return self.__master.getMurmurModule()
+    
+    def getMeta(self):
+        """
+        Returns the connected servers meta module or None if it is not available
+        """
+        return self.__master.getMeta()
 
     
 class MumoManager(Worker):
@@ -172,12 +183,15 @@ class MumoManager(Worker):
                               ('cfg_dir', str, "modules-enabled/"),
                               ('timeout', int, 2))}
     
-    def __init__(self, cfg = Config(default = cfg_default)):
+    def __init__(self, murmur, cfg = Config(default = cfg_default)):
         Worker.__init__(self, "MumoManager")
         self.queues = {} # {queue:module}
         self.modules = {} # {name:module}
         self.imports = {} # {name:import}
         self.cfg = cfg
+        
+        self.murmur = murmur
+        self.meta = None
         
         self.metaCallbacks = {} # {sid:{queue:[handler]}}
         self.serverCallbacks = {}
@@ -201,38 +215,37 @@ class MumoManager(Worker):
             except KeyError, ValueError:
                 pass
             
-    def __announce_to_dict(self, mdict, servers, function, *args, **kwargs):
+    def __announce_to_dict(self, mdict, server, function, *args, **kwargs):
         """
         Call function on handlers for specific servers in one of our handler
         dictionaries.
         
         @param mdict Dictionary to announce to
-        @param servers: Servers to announce to, ALL is always implied
-        @param function: Function the handler should call
-        @param args: Arguments for the function
-        @param kwargs: Keyword arguments for the function
-        """   
-        # Announce to all handlers registered to all events
-        try:
-            for queue, handlers in mdict[self.MAGIC_ALL].iteritems():
-                for handler in handlers:
-                    self.__call_remote(queue, handler, function, args, kwargs)
-        except KeyError:
-            # No handler registered for MAGIC_ALL
-            pass
-                
+        @param server Server to announce to, ALL is always implied
+        @param function Function the handler should call
+        @param args Arguments for the function
+        @param kwargs Keyword arguments for the function
+        """
+        
         # Announce to all handlers of the given serverlist
+        if server == self.MAGIC_ALL:
+            servers = mdict.iterkeys()
+        else:
+            servers = [self.MAGIC_ALL, server]
+            
         for server in servers:
             try:
-                for queue, handler in mdict[server].iteritems():
-                    self.__call_remote(queue, handler, function, args, kwargs)
+                for queue, handlers in mdict[server].iteritems():
+                    for handler in handlers:
+                        self.__call_remote(queue, handler, function, *args, **kwargs)
             except KeyError:
                 # No handler registered for that server
                 pass
-        
+    
     def __call_remote(self, queue, handler, function, *args, **kwargs):
         try:
             func = getattr(handler, function) # Find out what to call on target
+            queue.put((None, func, args, kwargs))
         except AttributeError, e:
             mod = self.queues.get(queue, None)
             myname = ""
@@ -240,20 +253,21 @@ class MumoManager(Worker):
                 if mod == mymod:
                     myname = name
             if myname:
-                self.log.error("Handler class registered by module '%s' does not handle function '%s'. Call failed.", myname, function)
+                self.log().error("Handler class registered by module '%s' does not handle function '%s'. Call failed.", myname, function)
             else:
                 self.log().exception(e)
-        queue.put((None, func, args, kwargs))
+
     
     #
     #-- Module multiplexing functionality
     #
     
     @local_thread
-    def announceConnected(self):
+    def announceConnected(self, meta = None):
         """
         Call connected handler on all handlers
         """
+        self.meta = meta
         for queue, module in self.queues.iteritems():
             self.__call_remote(queue, module, "connected")
             
@@ -266,40 +280,40 @@ class MumoManager(Worker):
             self.__call_remote(queue, module, "disconnected")
 
     @local_thread
-    def announceMeta(self, servers, function, *args, **kwargs):
+    def announceMeta(self, server, function, *args, **kwargs):
         """
         Call a function on the meta handlers
         
-        @param servers Servers to announce to
+        @param server Servers to announce to
         @param function Name of the function to call on the handler
         @param args List of arguments
         @param kwargs List of keyword arguments
         """
-        self.__announce_to_dict(self.metaCallbacks, servers, function, *args, **kwargs)
+        self.__announce_to_dict(self.metaCallbacks, server, function, *args, **kwargs)
         
     @local_thread
-    def announceServer(self, servers, function, *args, **kwargs):
+    def announceServer(self, server, function, *args, **kwargs):
         """
         Call a function on the server handlers
         
-        @param servers Servers to announce to
+        @param server Server to announce to
         @param function Name of the function to call on the handler
         @param args List of arguments
         @param kwargs List of keyword arguments
         """
-        self.__announce_to_dict(self.serverCallbacks, servers, function, *args, **kwargs)
+        self.__announce_to_dict(self.serverCallbacks, server, function, *args, **kwargs)
         
     @local_thread
-    def announceContext(self, servers, function, *args, **kwargs):
+    def announceContext(self, server, function, *args, **kwargs):
         """
         Call a function on the context handlers
         
-        @param servers Servers to announce to
+        @param server Server to announce to
         @param function Name of the function to call on the handler
         @param args List of arguments
         @param kwargs List of keyword arguments
         """
-        self.__announce_to_dict(self.serverCallbacks, servers, function, *args, **kwargs)
+        self.__announce_to_dict(self.serverCallbacks, server, function, *args, **kwargs)
     #
     #--- Module self management functionality
     #
@@ -351,8 +365,19 @@ class MumoManager(Worker):
         @see MumoManagerRemote
         """
         return self.__rem_from_dict(self.contextCallbacks, queue, handler, servers)
+
+    def getMurmurModule(self):
+        """
+        Returns the Murmur module generated from the slice file
+        """
+        return self.murmur
     
-    #
+    def getMeta(self):
+        """
+        Returns the connected servers meta module or None if it is not available
+        """
+        return self.meta
+    
     #--- Module load/start/stop/unload functionality
     #
     @local_thread_blocking

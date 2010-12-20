@@ -75,11 +75,11 @@ class MumoManagerTest(unittest.TestCase):
                 if arg1 == "arg1" and arg2 == "arg2":
                     self.emeta.set()
                     
-            def contextCallMe(self, arg1, arg2):
+            def contextCallMe(self, server, arg1, arg2):
                 if arg1 == "arg1" and arg2 == "arg2":
                     self.econtext.set()
                     
-            def serverCallMe(self, arg1, arg2):
+            def serverCallMe(self, server, arg1, arg2):
                 if arg1 == "arg1" and arg2 == "arg2":
                     self.eserver.set()
         
@@ -95,7 +95,7 @@ class MumoManagerTest(unittest.TestCase):
     #--- Helpers for independent test env creation
     #
     def up(self):
-        man = MumoManager()
+        man = MumoManager(None)
         man.start()
 
         mod = man.loadModuleCls("MyModule", self.mymod, self.cfg)
@@ -144,21 +144,33 @@ class MumoManagerTest(unittest.TestCase):
     def testMetaCallback(self):
         man, mod = self.up()
         man.announceConnected()
-        man.announceMeta([], "metaCallMe", ["arg1"], {"arg2":"arg2"})
+        mod.econnected.wait(timeout=1)
+        assert(mod.econnected.is_set())
+        man.announceMeta(man.MAGIC_ALL, "metaCallMe", "arg1", arg2 = "arg2")
+        mod.emeta.wait(timeout=1)
+        assert(mod.emeta.is_set())
         man.announceDisconnected()
         self.down(man, mod)
     
     def testContextCallback(self):
         man, mod = self.up()
         man.announceConnected()
-        man.announceContext([], "contextCallMe", ["arg1"], {"arg2":"arg2"})
+        mod.econnected.wait(timeout=1)
+        assert(mod.econnected.is_set())
+        man.announceContext(man.MAGIC_ALL, "contextCallMe", "server", "arg1", arg2 = "arg2")
+        mod.econtext.wait(timeout=1)
+        assert(mod.econtext.is_set())
         man.announceDisconnected()
         self.down(man, mod)
     
     def testServerCallback(self):
         man, mod = self.up()
         man.announceConnected()
-        man.announceServer([], "serverCallMe", ["arg1"], {"arg2":"arg2"})
+        mod.econnected.wait(timeout=1)
+        assert(mod.econnected.is_set())
+        man.announceServer(man.MAGIC_ALL, "serverCallMe", "server", "arg1", arg2 = "arg2")
+        mod.eserver.wait(timeout=1)
+        assert(mod.eserver.is_set())
         man.announceDisconnected()
         self.down(man, mod)
         

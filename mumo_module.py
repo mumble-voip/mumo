@@ -91,10 +91,10 @@ class MumoModule(Worker):
     
     
 def logModFu(fu):
-    def newfu(self, *args, **kwargs):
+    def new_fu(self, *args, **kwargs):
         log = self.log()
         argss = '' if len(args)==0 else ',' + ','.join(['"%s"' % str(arg) for arg in args])
         kwargss = '' if len(kwargs)==0 else ','.join('%s="%s"' % (kw, str(arg)) for kw, arg in kwargs.iteritems())
         log.debug("%s(%s%s%s)", fu.__name__, str(self), argss, kwargss)
         return fu(self, *args, **kwargs)
-    return newfu
+    return new_fu

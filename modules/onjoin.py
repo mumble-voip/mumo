@@ -30,74 +30,64 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 from mumo_module import (x2bool,
+                         commaSeperatedIntegers,
                          MumoModule,
-                         logModFu)
-    
-class test(MumoModule):
-    default_config = {'testing':(('tvar', int , 1),
-                                 ('novar', str, 'no bernd'))}
+                         Config)
+import re
+
+
+class onjoin(MumoModule):
+    default_config = {'onjoin':(
+                                ('servers', commaSeperatedIntegers, []),
+                                ),
+                      'all':(
+                             ('channel', int, 1),
+                             ),
+                      lambda x: re.match('server_\d+', x):(
+                                ('channel', int, 1),
+                                )
+                    }
     
     def __init__(self, name, manager, configuration = None):
         MumoModule.__init__(self, name, manager, configuration)
-        log = self.log()
-        cfg = self.cfg()
-        log.debug("tvar: %s", cfg.testing.tvar)
-        log.debug("novar: %s", cfg.testing.novar)
-    
-    @logModFu
+        self.murmur = manager.getMurmurModule()
+
     def connected(self):
         manager = self.manager()
         log = self.log()
-        log.debug("Ice connected, register for everything out there")
-        manager.subscribeMetaCallbacks(self)
-        manager.subscribeServerCallbacks(self, manager.SERVERS_ALL)
-        manager.subscribeContextCallbacks(self, manager.SERVERS_ALL)
+        log.debug("Register for Server callbacks")
+        
+        servers = self.cfg().onjoin.servers
+        if not servers:
+            servers = manager.SERVERS_ALL
+            
+        manager.subscribeServerCallbacks(self, servers)
     
-    @logModFu
-    def disconnected(self):
-        self.log().debug("Ice disconnected")
-    #
-    #--- Meta callback functions
-    #
-    
-    @logModFu
-    def started(self, server, context = None):
-        pass
-    
-    @logModFu
-    def stopped(self, server, context = None):
-        pass
+    def disconnected(self): pass
     
     #
     #--- Server callback functions
     #
-    @logModFu
+    
     def userConnected(self, server, state, context = None):
-        pass
+        log = self.log()
+        sid = server.id()
+        try:
+            scfg = getattr(self.cfg(), 'server_%d' % sid)
+        except AttributeError:
+            scfg = self.cfg().all
+        
+        if state.channel != scfg.channel:
+            log.debug("Moving user '%s' from channel %d to %d on server %d", state.name, state.channel, scfg.channel, sid)
+            state.channel = scfg.channel
+            
+            try:
+                server.setState(state)
+            except self.murmur.InvalidChannelException:
+                log.error("Moving user '%s' failed, target channel %d does not exist on server %d", state.name, scfg.channel, sid)
     
-    @logModFu
-    def userDisconnected(self, server, state, context = None):
-        pass
-    
-    @logModFu
-    def userStateChanged(self, server, state, context = None):
-        pass
-    
-    @logModFu
-    def channelCreated(self, server, state, context = None):
-        pass
-    
-    @logModFu
-    def channelRemoved(self, server, state, context = None):
-        pass
-    
-    @logModFu
-    def channelStateChanged(self, server, state, context = None):
-        pass
-    
-    #
-    #--- Server context callback functions
-    #
-    @logModFu
-    def contextAction(self, server, action, user, session, channelid, context = None):
-        pass
+    def userDisconnected(self, server, state, context = None): pass
+    def userStateChanged(self, server, state, context = None): pass
+    def channelCreated(self, server, state, context = None): pass
+    def channelRemoved(self, server, state, context = None): pass
+    def channelStateChanged(self, server, state, context = None): pass
