@@ -311,6 +311,13 @@ def do_main_program():
             self.manager = manager
             self.sid = sid
             self.server = server
+            
+            # Hack to prevent every call to server.id() from the client callbacks
+            # from having to go over Ice
+            def id_replacement():
+                return self.sid
+            
+            server.id = id_replacement
 
         @checkSecret
         @forwardServer

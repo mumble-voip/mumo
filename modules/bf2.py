@@ -51,6 +51,7 @@ class bf2(MumoModule):
                              ('mumble_server', int, 1),
                              ('ipport_filter', re.compile, re.compile('.*')),
                              
+                             ('base', int, 0),
                              ('left', int, -1),
                              
                              ('blufor_commander', int, -1),
@@ -173,10 +174,10 @@ class bf2(MumoModule):
         
         if (opi != npi or opc != opi) and opi and opc:
             log.debug("Removing user '%s' (%d|%d) on server %d from groups of game %s", newstate.name, newstate.session, newstate.userid, sid, og or ogcfgname)
-            server.removeUserFromGroup(0, session, "bf2%s_%s_commander" % (og, opi["team"]))
-            server.removeUserFromGroup(0, session, "bf2%s_%s_%s_squad_leader" % (og, opi["team"], self.id_to_squad_name[opi["squad"]]))
-            server.removeUserFromGroup(0, session, "bf2%s_%s_%s_squad" % (og, opi["team"], self.id_to_squad_name[opi["squad"]]))
-            server.removeUserFromGroup(0, session, "bf2%s_%s" % (og, opi["team"]))
+            server.removeUserFromGroup(ogcfg.base, session, "bf2%s_%s_commander" % (og, opi["team"]))
+            server.removeUserFromGroup(ogcfg.base, session, "bf2%s_%s_%s_squad_leader" % (og, opi["team"], self.id_to_squad_name[opi["squad"]]))
+            server.removeUserFromGroup(ogcfg.base, session, "bf2%s_%s_%s_squad" % (og, opi["team"], self.id_to_squad_name[opi["squad"]]))
+            server.removeUserFromGroup(ogcfg.base, session, "bf2%s_%s" % (og, opi["team"]))
             
             channame = "left"
             newstate.channel = ogcfg.left
@@ -186,12 +187,12 @@ class bf2(MumoModule):
             
             # First add to team group
             group = "bf2%s_%s" % (ng, npi["team"])
-            server.addUserToGroup(0, session, group)
+            server.addUserToGroup(ngcfg.base, session, group)
             log.debug("Added '%s' @ %s to group %s", newstate.name, ng or ngcfgname, group)
             
             # Then add to squad group
             group = "bf2%s_%s_%s_squad" % (ng, npi["team"], self.id_to_squad_name[npi["squad"]])
-            server.addUserToGroup(0, session, group)
+            server.addUserToGroup(ngcfg.base, session, group)
             log.debug("Added '%s' @ %s to group %s", newstate.name, ng or ngcfgname, group)
             
             channame = "%s_%s_squad" % (npi["team"], self.id_to_squad_name[npi["squad"]])
@@ -200,7 +201,7 @@ class bf2(MumoModule):
             if npi["is_leader"]:
                 # In case the leader flag is set add to leader group
                 group = "bf2%s_%s_%s_squad_leader" % (ng, npi["team"], self.id_to_squad_name[npi["squad"]])
-                server.addUserToGroup(0, session, group)
+                server.addUserToGroup(ngcfg.base, session, group)
                 log.debug("Added '%s' @ %s to group %s", newstate.name, ng or ngcfgname, group)
                 
                 # Override previous moves
@@ -210,7 +211,7 @@ class bf2(MumoModule):
 
             if npi["is_commander"]:
                 group = "bf2%s_%s_commander" % (ng, npi["team"])
-                server.addUserToGroup(0, session, group)
+                server.addUserToGroup(ngcfg.base, session, group)
                 log.debug("Added '%s' @ %s to group %s", newstate.name, ng or ngcfgname, group)
                 
                 # Override previous moves
