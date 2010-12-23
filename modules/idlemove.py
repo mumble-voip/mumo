@@ -29,6 +29,14 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#
+# idlemove.py
+#
+# Module for moving/muting/deafening idle players after
+# a certain amount of time and moving them back once
+# they interact again.
+#
+
 from mumo_module import (x2bool,
                          commaSeperatedIntegers,
                          MumoModule,

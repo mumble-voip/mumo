@@ -29,6 +29,12 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#
+# onjoin.py
+# This module allows moving players into a specific channel once
+# they connect regardless of which channel they were in when they left.
+#
+
 from mumo_module import (x2bool,
                          commaSeperatedIntegers,
                          MumoModule,

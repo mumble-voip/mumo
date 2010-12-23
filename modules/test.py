@@ -29,6 +29,14 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#
+# test.py
+# The test module has heavy debug output was solely
+# written for testing the basic framework as well as
+# debugging purposes. Usually you don't want
+# to use this.
+#
+
 from mumo_module import (x2bool,
                          MumoModule,
                          logModFu)
