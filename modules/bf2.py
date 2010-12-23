@@ -68,8 +68,8 @@ class bf2(MumoModule):
                              ('blufor_echo_squad_leader', int, -1),
                              ('blufor_foxtrot_squad', int, -1),
                              ('blufor_foxtrot_squad_leader', int, -1),
-                             ('blufor_gold_squad', int, -1),
-                             ('blufor_gold_squad_leader', int, -1),
+                             ('blufor_golf_squad', int, -1),
+                             ('blufor_golf_squad_leader', int, -1),
                              ('blufor_hotel_squad', int, -1),
                              ('blufor_hotel_squad_leader', int, -1),
                              ('blufor_india_squad', int, -1),
@@ -89,8 +89,8 @@ class bf2(MumoModule):
                              ('opfor_echo_squad_leader', int, -1),
                              ('opfor_foxtrot_squad', int, -1),
                              ('opfor_foxtrot_squad_leader', int, -1),
-                             ('opfor_gold_squad', int, -1),
-                             ('opfor_gold_squad_leader', int, -1),
+                             ('opfor_golf_squad', int, -1),
+                             ('opfor_golf_squad_leader', int, -1),
                              ('opfor_hotel_squad', int, -1),
                              ('opfor_hotel_squad_leader', int, -1),
                              ('opfor_india_squad', int, -1),
@@ -98,7 +98,7 @@ class bf2(MumoModule):
                              ),
                     }
     
-    id_to_squad_name = ["no", "alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "gold", "hotel", "india"]
+    id_to_squad_name = ["no", "alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india"]
     
     def __init__(self, name, manager, configuration = None):
         MumoModule.__init__(self, name, manager, configuration)
@@ -136,7 +136,6 @@ class bf2(MumoModule):
         newoldchannel = newstate.channel
         
         try:
-            oli = oldstate.is_linked
             opc = oldstate.parsedcontext
             ogcfgname = opc["gamename"]
             ogcfg = opc["gamecfg"]
@@ -147,10 +146,13 @@ class bf2(MumoModule):
             
             opi = {}
             opc = {}
+            
+        if oldstate and oldstate.is_linked:
+            oli = True
+        else:
             oli = False
         
         try:
-            nli = newstate.is_linked
             npc = newstate.parsedcontext
             ngcfgname = npc["gamename"]
             ngcfg = npc["gamecfg"]
@@ -163,10 +165,10 @@ class bf2(MumoModule):
             npc = {}
             nli = False
         
-#        print opc
-#        print npc
-#        print opi
-#        print npi
+        if newstate and newstate.is_linked:
+            nli = True
+        else:
+            nli = False
         
         if not oli and nli:
             log.debug("User '%s' (%d|%d) on server %d now linked", newstate.name, newstate.session, newstate.userid, sid)
@@ -222,7 +224,7 @@ class bf2(MumoModule):
             log.debug("User '%s' (%d|%d) on server %d no longer linked", newstate.name, newstate.session, newstate.userid, sid)
             server.removeUserFromGroup(0, session, "bf2_linked")
                 
-        if newstate.channel > 0 and newoldchannel != newstate.channel:
+        if newstate.channel >= 0 and newoldchannel != newstate.channel:
             if ng == None:
                 log.debug("Moving '%s' leaving %s to channel %s", newstate.name, og or ogcfgname, channame)
             else:
@@ -234,6 +236,9 @@ class bf2(MumoModule):
         cfg = self.cfg()
         log = self.log()
         update = False
+        
+        state.is_linked = False
+        
         if state.session in self.sessions:
             if state.identity != self.sessions[state.session].identity:
                 update = True
@@ -247,7 +252,7 @@ class bf2(MumoModule):
             else:
                 self.sessions[state.session] = state
                 return
-        
+            
         if update:
             if state.context.startswith("Battlefield 2\0"):
                 state.is_linked = True
@@ -300,7 +305,6 @@ class bf2(MumoModule):
                     state.parsedidentity = {}
                 
             else:
-                state.is_linked = False
                 state.parsedidentity = {}
                 state.parsedcontext = {}
                 
