@@ -118,16 +118,15 @@ class bf2(MumoModule):
                 log.error("Invalid configuration. Game configuration for 'g%d' not found.", i)
                 return
         
-        self.sessions = {} # {sid:laststae}
+        self.sessions = {} # {serverid:{sessionid:laststate}}
         manager.subscribeServerCallbacks(self, servers)
         manager.subscribeMetaCallbacks(self, servers)
     
     def disconnected(self): pass
     
     #
-    #--- Server callback functions
+    #--- Module specific state handling code
     #
-    
     def update_state(self, server, oldstate, newstate):
         log = self.log()
         sid = server.id()
@@ -235,23 +234,28 @@ class bf2(MumoModule):
     def handle(self, server, state):
         cfg = self.cfg()
         log = self.log()
+        sid = server.id()
         update = False
         
         state.is_linked = False
         
-        if state.session in self.sessions:
-            if state.identity != self.sessions[state.session].identity:
+        if sid not in self.sessions:
+            self.sessions[sid] = {}
+            
+        if state.session in self.sessions[sid]:
+            if state.identity != self.sessions[sid][state.session].identity:
                 update = True
             
-            if state.context != self.sessions[state.session].context:
+            if state.context != self.sessions[sid][state.session].context:
                 update = True
         else:
             if state.identity or state.context:
-                self.sessions[state.session] = None
+                self.sessions[sid][state.session] = None
                 update = True
             else:
-                self.sessions[state.session] = state
+                self.sessions[sid][state.session] = state
                 return
+
             
         if update:
             if state.context.startswith("Battlefield 2\0"):
@@ -309,12 +313,17 @@ class bf2(MumoModule):
                 state.parsedcontext = {}
                 
 
-            self.update_state(server, self.sessions[state.session], state)
-            self.sessions[state.session] = state
+            self.update_state(server, self.sessions[sid][state.session], state)
+            self.sessions[sid][state.session] = state
+    
+    #
+    #--- Server callback functions
+    #
     
     def userDisconnected(self, server, state, context = None):
         try:
-            del self.sessions[state.session]
+            sid = server.id()
+            del self.sessions[sid][state.session]
         except KeyError: pass
          
     def userStateChanged(self, server, state, context = None):
@@ -331,5 +340,8 @@ class bf2(MumoModule):
     #--- Meta callback functions
     #
 
-    def started(self, server, context = None): pass
-    def stopped(self, server, context = None): pass
+    def started(self, server, context = None):
+        self.sessions[server.id()] = {}
+        
+    def stopped(self, server, context = None):
+        self.sessions[server.id()] = {}
