@@ -61,7 +61,7 @@ if __name__ == "__main__":
     parser.add_option('-s', '--secret',
                       help = 'Ice secret', default = '')
     parser.add_option('-n', '--name',
-                      help = 'Treename')
+                      help = 'Treename', default = 'BF2')
     parser.add_option('-o', '--out', default = 'bf2.ini',
                       help = 'File to output configuration to')
     (option, args) = parser.parse_args()
