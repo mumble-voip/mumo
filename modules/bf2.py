@@ -35,12 +35,10 @@
 # gamestate reported by Mumble positional audio plugins
 #
 
-from mumo_module import (x2bool,
-                         MumoModule)
+from mumo_module import MumoModule
 
 import re
-from xml.etree import ElementTree
-from xml.parsers.expat import ExpatError
+import json
 
 class bf2(MumoModule):
     default_config = {'bf2':(
@@ -199,7 +197,7 @@ class bf2(MumoModule):
             channame = "%s_%s_squad" % (npi["team"], self.id_to_squad_name[npi["squad"]])
             newstate.channel = getattr(ngcfg, channame)
             
-            if npi["is_leader"]:
+            if npi["squad_leader"]:
                 # In case the leader flag is set add to leader group
                 group = "bf2%s_%s_%s_squad_leader" % (ng, npi["team"], self.id_to_squad_name[npi["squad"]])
                 server.addUserToGroup(ngcfg.base, session, group)
@@ -210,7 +208,7 @@ class bf2(MumoModule):
                 newstate.channel = getattr(ngcfg, channame)
 
 
-            if npi["is_commander"]:
+            if npi["commander"]:
                 group = "bf2%s_%s_commander" % (ng, npi["team"])
                 server.addUserToGroup(ngcfg.base, session, group)
                 log.debug("Added '%s' @ %s to group %s", newstate.name, ng or ngcfgname, group)
@@ -232,89 +230,87 @@ class bf2(MumoModule):
             server.setState(newstate)
         
     def handle(self, server, state):
+        def verify(mdict, key, vtype):
+            if not isinstance(mdict[key], vtype):
+                raise ValueError("'%s' of invalid type" % key)
+            
         cfg = self.cfg()
         log = self.log()
         sid = server.id()
-        update = False
-        
+
+        # Add defaults for our variables to state
+        state.parsedidentity = {}
+        state.parsedcontext = {}
         state.is_linked = False
         
-        if sid not in self.sessions:
+        if sid not in self.sessions: # Make sure there is a dict to store states in
             self.sessions[sid] = {}
-            
+        
+        update = False
         if state.session in self.sessions[sid]:
-            if state.identity != self.sessions[sid][state.session].identity:
-                update = True
-            
-            if state.context != self.sessions[sid][state.session].context:
+            if state.identity != self.sessions[sid][state.session].identity or \
+               state.context != self.sessions[sid][state.session].context:
+                # identity or context changed => update
                 update = True
         else:
             if state.identity or state.context:
+                # New user with engaged plugin => update
                 self.sessions[sid][state.session] = None
                 update = True
-            else:
-                self.sessions[sid][state.session] = state
-                return
-
-            
-        if update:
-            if state.context.startswith("Battlefield 2\0"):
-                state.is_linked = True
                 
-                try:
-                    context = ElementTree.fromstring(state.context.split('\0', 1)[1])
-                    
-                    ipport = context.find("ipport").text
-                    if ipport == None:
-                        ipport = ''
-
-                    for i in range(cfg.bf2.gamecount):
-                        # Try to find a matching game
-                        gamename = "g%d" % i
-                        gamecfg = getattr(cfg, gamename)
-                        if gamecfg.mumble_server == server.id() and \
-                            gamecfg.ipport_filter.match(ipport):
-                            break
-                        gamename = None
-                    
-                    if not gamename:
-                        raise ValueError("No matching game found")
-                        
-                    state.parsedcontext = {'ipport' : ipport,
-                                           'gamecfg' : gamecfg,
-                                           'gamename' : gamename}
-
-                except (ExpatError, AttributeError, ValueError):
-                    state.parsedcontext = {}
-                
-                try:
-                    identity = ElementTree.fromstring(state.identity)
-                    
-                    is_commander = x2bool(identity.find("commander").text)
-                    is_leader = x2bool(identity.find("squad_leader").text)
-                    team = identity.find("team").text
-                    if team != "opfor" and team != "blufor":
-                        raise ValueError("Invalid team value '%s'" % team)
-                        
-                    squad = int(identity.find("squad").text)
-                    if squad < 0 or squad > 9:
-                        raise ValueError("Invalid squad value '%s'" % squad)
-
-                    state.parsedidentity = {'team' : team,
-                                           'squad' : squad,
-                                           'is_leader' : is_leader,
-                                           'is_commander' : is_commander}
-                    
-                except (ExpatError, AttributeError, ValueError):
-                    state.parsedidentity = {}
-                
-            else:
-                state.parsedidentity = {}
-                state.parsedcontext = {}
-                
-
-            self.update_state(server, self.sessions[sid][state.session], state)
+        if not update:
             self.sessions[sid][state.session] = state
+            return
+            
+        # The plugin will always prefix "Battlefield 2\0" to the context for the bf2 PA plugin
+        # don't bother analyzing anything if it isn't there
+        splitcontext = state.context.split('\0', 1)
+        if splitcontext[0] == "Battlefield 2":
+            state.is_linked = True
+        
+        if state.is_linked and len(splitcontext) == 2 and state.identity: 
+            try:
+                context = json.loads(splitcontext[1])
+                verify(context, "ipport", basestring)
+                
+                for i in range(cfg.bf2.gamecount):
+                    # Try to find a matching game
+                    gamename = "g%d" % i
+                    gamecfg = getattr(cfg, gamename)
+                    if gamecfg.mumble_server == server.id() and \
+                        gamecfg.ipport_filter.match(context["ipport"]):
+                        break
+                    gamename = None
+                
+                if not gamename:
+                    raise ValueError("No matching game found")
+                
+                context["gamecfg"] = gamecfg
+                context["gamename"] = gamename
+                state.parsedcontext = context
+
+            except (ValueError, KeyError, AttributeError), e:
+                log.debug("Invalid context for %s (%d|%d) on server %d: %s", state.name, state.session, state.userid, sid, repr(e))
+        
+            try:
+                identity = json.loads(state.identity)
+                verify(identity, "commander", bool)
+                verify(identity, "squad_leader", bool)
+                verify(identity, "squad", int)
+                if identity["squad"] < 0 or identity["squad"] > 9:
+                    raise ValueError("Invalid squad number")
+                verify(identity, "team", basestring)
+                if identity["team"] != "opfor" and identity["team"] != "blufor":
+                    raise ValueError("Invalid team identified")
+                
+                state.parsedidentity = identity
+                
+            except (KeyError, ValueError), e:
+                log.debug("Invalid identity for %s (%d|%d) on server %d: %s", state.name, state.session, state.userid, sid, repr(e))
+
+        # Update state and remember it
+        self.update_state(server, self.sessions[sid][state.session], state)
+        self.sessions[sid][state.session] = state
     
     #
     #--- Server callback functions
