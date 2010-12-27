@@ -30,7 +30,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
-from config import Config, x2bool, commaSeperatedIntegers, commaSeperatedStrings
+from config import Config, x2bool, commaSeperatedIntegers, commaSeperatedStrings, commaSeperatedBool
 from tempfile import mkstemp
 import os
 import re
@@ -88,13 +88,13 @@ value = True
             os.remove(path)
     
     def testX2bool(self):
-        assert(x2bool("true") == True)
+        assert(x2bool(" true") == True)
         assert(x2bool("false") == False)
-        assert(x2bool("TrUe") == True)
-        assert(x2bool("FaLsE") == False)
-        assert(x2bool("0") == False)
+        assert(x2bool(" TrUe") == True)
+        assert(x2bool("FaLsE ") == False)
+        assert(x2bool("0 ") == False)
         assert(x2bool("1") == True)
-        assert(x2bool("10") == False)
+        assert(x2bool(" 10") == False)
         assert(x2bool("notabool") == False)
         
     def testCommaSeperatedIntegers(self):
@@ -103,6 +103,9 @@ value = True
     
     def testCommaSeperatedStrings(self):
         assert(commaSeperatedStrings("Bernd, the, bred !") == ["Bernd", "the", "bred !"])
+    
+    def testCommaSeperatedBool(self):
+        assert(commaSeperatedBool("tRue ,false, 0, 0, 1,1, test") == [True, False, False, False, True, True, False])
         
     def testConfig(self):
         path = create_file(self.cfg_content)

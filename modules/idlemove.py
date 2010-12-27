@@ -33,12 +33,13 @@
 # idlemove.py
 #
 # Module for moving/muting/deafening idle players after
-# a certain amount of time and moving them back once
-# they interact again.
+# a certain amount of time and unmuting/undeafening them
+# once they become active again
 #
 
 from mumo_module import (x2bool,
                          commaSeperatedIntegers,
+                         commaSeperatedBool,
                          MumoModule,
                          Config)
 
@@ -53,18 +54,12 @@ class idlemove(MumoModule):
                              ('interval', float, 0.1),
                              ('servers', commaSeperatedIntegers, []),
                              ),
-                      'all':(
-                             ('threshold', int, 3600),
-                             ('mute', x2bool, True),
-                             ('deafen', x2bool, False),
-                             ('channel', int, 1)
-                             ),
-                      lambda x: re.match('server_\d+', x):(
-                             ('threshold', int, 3600),
-                             ('mute', x2bool, True),
-                             ('deafen', x2bool, False),
-                             ('channel', int, 1),
-                             ('restore', x2bool, True)
+                      lambda x: re.match('(all)|(server_\d+)', x):(
+                             ('threshold', commaSeperatedIntegers, [3600]),
+                             ('mute', commaSeperatedBool, [True]),
+                             ('deafen', commaSeperatedBool, [False]),
+                             ('channel', commaSeperatedIntegers, [1]),
+                             ('source_channel', commaSeperatedIntegers, [-1])
                              ),
                     }
     
@@ -133,42 +128,67 @@ class idlemove(MumoModule):
         except KeyError:
             self.affectedusers[sid] = set()
             index = self.affectedusers[sid]
-            
-        update = False
-        if not user in index and user.idlesecs > scfg.threshold:
-            if scfg.deafen \
-                and not (user.suppress or user.selfMute or user.mute) \
-                and not (user.selfDeaf or user.deaf):
-                log.info('Mute and deafen user %s (%d / %d) on server %d', user.name, user.session, user.userid, sid)
-                user.deaf = True
-                update = True
-            elif scfg.mute and not (user.suppress or user.selfMute or user.mute):
-                log.info('Mute user %s (%d / %d) on server %d', user.name, user.session, user.userid, sid)
-                user.mute = True
-                update = True
-            
-            if scfg.channel >= 0 and user.channel != scfg.channel:
-                log.info('Move user %s (%d / %d) on server %d', user.name, user.session, user.userid, sid)
-                user.channel = scfg.channel
-                update = True
-                
-            if update:
-                index.add(user.session)
-                
-        elif user.session in index and user.idlesecs < scfg.threshold:
-            index.remove(user.session)
-            if scfg.deafen:
-                log.info('Unmute and undeafen user %s (%d / %d) on server %d', user.name, user.session, user.userid, sid)
-                user.mute = False
-                user.deaf = False
-                update = True
-            elif scfg.mute:
-                log.info('Unmute user %s (%d / %d) on server %d', user.name, user.session, user.userid, sid)
-                user.mute = False
-                update = True
         
+        # Remember values so we can see changes later
+        threshold = None
+        mute = user.mute
+        deafen = user.deaf
+        channel = user.channel
+        
+        update = False
+        over_threshold = False
+        
+        # Search all our stages top down for a violated treshold and pick the first
+        for i in range(len(scfg.threshold) - 1, -1, -1):
+            try:
+                source_channel = scfg.source_channel[i]
+            except IndexError:
+                source_channel = -1
+                
+            try:
+                threshold = scfg.threshold[i]
+                mute = scfg.mute[i]
+                deafen = scfg.deafen[i]
+                channel = scfg.channel[i]
+            except IndexError:
+                log.warning("Incomplete configuration for stage %d of server %i, ignored", i, server.id())
+                continue
+
+            if user.idlesecs > threshold and\
+                (source_channel == -1 or\
+                 user.channel == source_channel or\
+                 user.channel == channel):
+                
+                over_threshold = True
+                # Update if state changes needed
+                if user.deaf != deafen:
+                    update = True
+                if user.mute != mute:
+                    update = True
+                if channel >= 0 and user.channel != channel:
+                    update = True
+                    
+                if update:
+                    index.add(user.session)
+                    log.info('%ds > %ds: State transition for user %s (%d/%d) from mute %s -> %s / deaf %s -> %s | channel %d -> %d on server %d',
+                             user.idlesecs, threshold, user.name, user.session, user.userid, user.mute, mute, user.deaf, deafen,
+                             user.channel, channel, server.id())
+                break
+        
+        if not over_threshold and user.session in self.affectedusers[sid]:
+            deafen = False
+            mute = False
+            channel = user.channel
+            index.remove(user.session)
+            log.info("Restore user %s (%d/%d) on server %d", user.name, user.session, user.userid, server.id())
+            update = True
+            
         if update:
+            user.deaf = deafen
+            user.mute = mute
+            user.channel = channel
             server.setState(user)
+            
     #
     #--- Server callback functions
     #

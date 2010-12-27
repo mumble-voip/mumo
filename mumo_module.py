@@ -32,7 +32,8 @@
 from config import (Config,
                     x2bool,
                     commaSeperatedIntegers,
-                    commaSeperatedStrings)
+                    commaSeperatedStrings,
+                    commaSeperatedBool)
 
 from worker import Worker
 

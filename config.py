@@ -93,7 +93,7 @@ def x2bool(s):
     if isinstance(s, bool):
         return s
     elif isinstance(s, basestring):
-        return s.lower() in ['1', 'true']
+        return s.strip().lower() in ['1', 'true']
     raise ValueError()
 
 def commaSeperatedIntegers(s):
@@ -109,3 +109,10 @@ def commaSeperatedStrings(s):
     containing comma seperated strings into a list of strings
     """
     return map(str.strip, s.split(','))
+
+def commaSeperatedBool(s):
+    """
+    Helper function to convert a string from the config
+    containing comma seperated strings into a list of booleans
+    """
+    return map(x2bool, s.split(','))

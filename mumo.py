@@ -374,11 +374,12 @@ def do_main_program():
     manager.stopModules()
     manager.stop()
     info('Shutdown complete')
+    return state
     
 class CustomLogger(Ice.Logger):
     """
     Logger implementation to pipe Ice log messages into
-    out own log
+    our own log
     """
     
     def __init__(self):
@@ -459,12 +460,13 @@ if __name__ == '__main__':
             print >> sys.stderr, 'Fatal error, could not daemonize process due to missing "daemon" library, ' \
             'please install the missing dependency and restart the authenticator'
             sys.exit(1)
-        do_main_program()
+        ret = do_main_program()
     else:
         context = daemon.DaemonContext(working_directory=sys.path[0],
                                        stderr=logfile)
         context.__enter__()
         try:
-            do_main_program()
+            ret = do_main_program()
         finally:
             context.__exit__(None, None, None)
+    sys.exit(ret)
