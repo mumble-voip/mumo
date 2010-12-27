@@ -64,9 +64,12 @@ if __name__ == "__main__":
                       help = 'Treename', default = 'BF2')
     parser.add_option('-o', '--out', default = 'bf2.ini',
                       help = 'File to output configuration to')
+    parser.add_option('-d', '--slidedir',
+                      help = 'System slice directory used when getSliceDir is not available', default = '/usr/share/slice')
     (option, args) = parser.parse_args()
     
     host = option.target
+    slicedir = option.slicedir
     try:
         port = int(option.port)
     except ValueError:
@@ -100,16 +103,25 @@ if __name__ == "__main__":
     ice = Ice.initialize(idata)
     prx = ice.stringToProxy(prxstr)
     print "Done"
+
+    def lslice(slf):
+        if not hasattr(Ice, "getSliceDir"):
+            Ice.loadSlice('-I%s %s' % (slicedir, slf))
+        else:
+            Ice.loadSlice('', ['-I' + Ice.getSliceDir(), slf])
     
     try:
         print "Trying to retrieve slice dynamically from server...",
-        slice = IcePy.Operation('getSlice', Ice.OperationMode.Idempotent, Ice.OperationMode.Idempotent, True, (), (), (), IcePy._t_string, ()).invoke(prx, ((), None))
-    
+        op = IcePy.Operation('getSlice', Ice.OperationMode.Idempotent, Ice.OperationMode.Idempotent, True, (), (), (), IcePy._t_string, ())
+        if hasattr(Ice, "getSliceDir"):
+            slice = op.invoke(prx, ((), None))
+        else:
+            slice = op.invoke(prx, (), None)
         (dynslicefiledesc, dynslicefilepath)  = tempfile.mkstemp(suffix = '.ice')
         dynslicefile = os.fdopen(dynslicefiledesc, 'w')
         dynslicefile.write(slice)
         dynslicefile.flush()
-        Ice.loadSlice('', ['-I' + Ice.getSliceDir(), dynslicefilepath])
+        lslice(dynslicefilepath)
         dynslicefile.close()
         os.remove(dynslicefilepath)
         print "Success"
@@ -118,7 +130,7 @@ if __name__ == "__main__":
         print str(e)
         slicefile = option.ice
         print "Load slice (%s)..." % slicefile,
-        Ice.loadSlice('', ['-I' + Ice.getSliceDir(), slicefile])
+        lslice(slicefile)
         print "Done"
     
     print "Import dynamically compiled murmur class...",
