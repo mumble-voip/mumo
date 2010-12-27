@@ -256,6 +256,8 @@ class bf2(MumoModule):
                state.context != self.sessions[sid][state.session].context:
                 # identity or context changed => update
                 update = True
+            else:
+                state.is_linked = self.sessions[sid][state.session].is_linked
         else:
             if state.identity or state.context:
                 # New user with engaged plugin => update
@@ -271,7 +273,10 @@ class bf2(MumoModule):
         splitcontext = state.context.split('\0', 1)
         if splitcontext[0] == "Battlefield 2":
             state.is_linked = True
-        
+            if state.identity and len(splitcontext) == 1:
+                #LEGACY: Assume broken Ice 3.2 which doesn't transmit context after \0
+                splitcontext.append('{"ipport":""}') # Obviously this doesn't give full functionality but it doesn't crash either ;-)
+
         if state.is_linked and len(splitcontext) == 2 and state.identity: 
             try:
                 context = json.loads(splitcontext[1])
@@ -306,6 +311,8 @@ class bf2(MumoModule):
                 verify(identity, "team", basestring)
                 if identity["team"] != "opfor" and identity["team"] != "blufor":
                     raise ValueError("Invalid team identified")
+                #LEGACY: Ice 3.2 cannot handle unicode strings
+                identity["team"] = str(identity["team"])
                 
                 state.parsedidentity = identity
                 
