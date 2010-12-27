@@ -56,7 +56,10 @@ default.update({'ice':(('host', str, '127.0.0.1'),
                       ('port', int, 6502),
                       ('slice', str, 'Murmur.ice'),
                       ('secret', str, ''),
-                      ('watchdog', int, 30)),
+                      ('slicedir', str, '/usr/share/slice'),
+                      ('watchdog', int, 30),
+                      ('callback_host', str, '127.0.0.1'),
+                      ('callback_port', int, -1)),
                       
                'iceraw':None,
                'murmur':(('servers', commaSeperatedIntegers, []),),
@@ -68,7 +71,11 @@ def do_main_program():
     #--- Moderator implementation
     #    All of this has to go in here so we can correctly daemonize the tool
     #    without loosing the file descriptors opened by the Ice module
-    Ice.loadSlice('', ['-I' + Ice.getSliceDir(), cfg.ice.slice])
+    if not hasattr(Ice, "getSliceDir"):
+        Ice.loadSlice('-I%s %s' % (cfg.ice.slicedir, cfg.ice.slice))
+    else:
+        Ice.loadSlice('', ['-I' + Ice.getSliceDir(), cfg.ice.slice])
+
     import Murmur
     
     class mumoIceApp(Ice.Application):
@@ -112,7 +119,12 @@ def do_main_program():
             base = ice.stringToProxy('Meta:tcp -h %s -p %d' % (cfg.ice.host, cfg.ice.port))
             self.meta = Murmur.MetaPrx.uncheckedCast(base)
         
-            adapter = ice.createObjectAdapterWithEndpoints('Callback.Client', 'tcp -h %s' % cfg.ice.host)
+            if cfg.ice.callback_port > 0:
+                cbp = ' -p %d' % cfg.ice.callback_port
+            else:
+                cbp = ''
+                
+            adapter = ice.createObjectAdapterWithEndpoints('Callback.Client', 'tcp -h %s%s' % (cfg.ice.callback_host, cbp))
             adapter.activate()
             self.adapter = adapter
             
