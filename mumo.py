@@ -104,7 +104,7 @@ def do_main_program():
         
         def initializeIceConnection(self):
             """
-            Establishes the two-way Ice connection and adds the authenticator to the
+            Establishes the two-way Ice connection and adds MuMo to the
             configured servers
             """
             ice = self.communicator()
@@ -135,7 +135,7 @@ def do_main_program():
         
         def attachCallbacks(self):
             """
-            Attaches all callbacks for meta and authenticators
+            Attaches all callbacks
             """
             
             # Ice.ConnectionRefusedException
@@ -151,10 +151,6 @@ def do_main_program():
                         servercbprx = self.adapter.addWithUUID(serverCallback(self.manager, server, sid))
                         servercb = Murmur.ServerCallbackPrx.uncheckedCast(servercbprx)
                         server.addCallback(servercb)
-                        
-#                        contextcbprx = self.adapter.addWithUUID(contextCallback(self.manager, sid))
-#                        contextcb = Murmur.ServerCallbackPrx.uncheckedCast(contextcbprx)
-#                        server.addContextCallback(contextcb)
                         
             except (Murmur.InvalidSecretException, Ice.UnknownUserException, Ice.ConnectionRefusedException), e:
                 if isinstance(e, Ice.ConnectionRefusedException):
@@ -226,7 +222,7 @@ def do_main_program():
     def fortifyIceFu(retval=None, exceptions=(Ice.Exception,)):
         """
         Decorator that catches exceptions,logs them and returns a safe retval
-        value. This helps preventing the authenticator getting stuck in
+        value. This helps to prevent getting stuck in
         critical code paths. Only exceptions that are instances of classes
         given in the exceptions list are not caught.
         
@@ -262,19 +258,16 @@ def do_main_program():
         def started(self, server, current=None):
             """
             This function is called when a virtual server is started
-            and makes sure an authenticator gets attached if needed.
+            and makes sure the callbacks get attached if needed.
             """
             sid = server.id()
             if not cfg.murmur.servers or sid in cfg.murmur.servers:
-                info('Setting authenticator for virtual server %d', server.id())
+                info('Setting callbacks for virtual server %d', server.id())
                 try:
                     servercbprx = self.app.adapter.addWithUUID(serverCallback(self.app.manager, server, sid))
                     servercb = Murmur.ServerCallbackPrx.uncheckedCast(servercbprx)
                     server.addCallback(servercb)
                     
-#                    contextcbprx = self.adapter.addWithUUID(contextCallback(self.app.manager, sid))
-#                    contextcb = Murmur.ServerCallbackPrx.uncheckedCast(contextcbprx)
-#                    server.addContextCallback(contextcb)
                 # Apparently this server was restarted without us noticing
                 except (Murmur.InvalidSecretException, Ice.UnknownUserException), e:
                     if hasattr(e, "unknown") and e.unknown != "Murmur::InvalidSecretException":
@@ -470,7 +463,7 @@ if __name__ == '__main__':
     except ImportError:
         if option.force_daemon:
             print >> sys.stderr, 'Fatal error, could not daemonize process due to missing "daemon" library, ' \
-            'please install the missing dependency and restart the authenticator'
+            'please install the missing dependency and restart the application'
             sys.exit(1)
         ret = do_main_program()
     else:

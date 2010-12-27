@@ -356,6 +356,10 @@ class MumoManager(Worker):
         @param queue Target worker queue
         @see MumoManagerRemote
         """
+        
+        #TODO: Implement context callbacks
+        self.log().error("Context callbacks not implemented at this point")
+        
         return self.__add_to_dict(self.contextCallbacks, queue, handler, servers)
     
     @local_thread
