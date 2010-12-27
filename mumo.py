@@ -286,7 +286,7 @@ def do_main_program():
             else:
                 debug('Virtual server %d got started', sid)
             
-            self.app.manager.announceMeta([sid], "started", server, current)
+            self.app.manager.announceMeta(sid, "started", server, current)
     
         @fortifyIceFu()
         @checkSecret
@@ -303,7 +303,7 @@ def do_main_program():
                         info('Watched virtual server %d got stopped', sid)
                     else:
                         debug('Virtual server %d got stopped', sid)
-                    self.app.manager.announceMeta([sid], "stopped", server, current)
+                    self.app.manager.announceMeta(sid, "stopped", server, current)
                     return
                 except Ice.ConnectionRefusedException:
                     self.app.connected = False

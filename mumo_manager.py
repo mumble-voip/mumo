@@ -284,7 +284,7 @@ class MumoManager(Worker):
         """
         Call a function on the meta handlers
         
-        @param server Servers to announce to
+        @param server Server to announce to
         @param function Name of the function to call on the handler
         @param args List of arguments
         @param kwargs List of keyword arguments
