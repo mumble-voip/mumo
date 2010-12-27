@@ -38,7 +38,11 @@
 from mumo_module import MumoModule
 
 import re
-import json
+try:
+    import json
+except ImportError: # Fallback for python < 2.6
+    import simplejson as json
+
 
 class bf2(MumoModule):
     default_config = {'bf2':(
