@@ -64,7 +64,7 @@ if __name__ == "__main__":
                       help = 'Treename', default = 'BF2')
     parser.add_option('-o', '--out', default = 'bf2.ini',
                       help = 'File to output configuration to')
-    parser.add_option('-d', '--slidedir',
+    parser.add_option('-d', '--slicedir',
                       help = 'System slice directory used when getSliceDir is not available', default = '/usr/share/slice')
     (option, args) = parser.parse_args()
     
