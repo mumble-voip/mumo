@@ -157,6 +157,8 @@ if __name__ == "__main__":
     print "Creating channel structure:"
     ACL = Murmur.ACL
     EAT = Murmur.PermissionEnter | Murmur.PermissionTraverse
+    W = Murmur.PermissionWhisper
+    S = Murmur.PermissionSpeak
     print name
     ini['left'] = basechan
     gamechan = server.addChannel(name, basechan)
@@ -169,57 +171,87 @@ if __name__ == "__main__":
     server.setACL(gamechan,
                   [ACL(applyHere = True,
                        applySubs = True,
-                        userid = -1,
+                       userid = -1,
                        group = 'all',
-                       deny = EAT),
-                    ACL(applyHere = True,
-                        applySubs = False,
-                        userid = -1,
-                        group = 'bf2_linked',
-                        allow = EAT)],
+                       deny = EAT | W | S),
+                   ACL(applyHere = True,
+                       applySubs = True,
+                       userid = -1,
+                       group = '~bf2_%s_game' % name,
+                       allow = S),
+                   ACL(applyHere = True,
+                       applySubs = False,
+                       userid = -1,
+                       group = '~bf2_%s_game' % name,
+                       allow = EAT | W)],
                    [], True)
     
+    gamechanstate = server.getChannelState(gamechan)
 
     teams = ["blufor", "opfor"]
     id_to_squad_name = ["no", "alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india"]
     for team in teams:
         print name + "/" + team
-        ini[team] = server.addChannel(team, gamechan)
+        cid = server.addChannel(team, gamechan)
+        gamechanstate.links.append(cid)
+        ini[team] = cid
+        
         server.setACL(ini[team],
                       [ACL(applyHere = True,
                            applySubs = False,
                            userid = -1,
-                           group = 'bf2%s_%s' % (name, team),
-                           allow = EAT)],
+                           group = '~bf2_team',
+                           allow = EAT | W)],
                       [], True)
         
         print name + "/" + team + "_commander"
-        ini[team + "_commander"] = server.addChannel("commander", ini[team])
+        cid = server.addChannel("commander", ini[team])
+        gamechanstate.links.append(cid)
+        ini[team + "_commander"] = cid 
+        
         server.setACL(ini[team + "_commander"],
                       [ACL(applyHere = True,
                            applySubs = False,
                            userid = -1,
-                           group = 'bf2%s_%s_commander' % (name, team),
-                           allow = EAT)],
+                           group = '~bf2_commander',
+                           allow = EAT | W),
+                       ACL(applyHere = True,
+                           applySubs = False,
+                           userid = -1,
+                           group = '~bf2_squad_leader',
+                           allow = W)],
                       [], True)
         
         state = server.getChannelState(ini[team+"_commander"])
         state.position = -1
         server.setChannelState(state)
         
-        ini[team + "_no_squad"] = ini[team]
-        for squad in id_to_squad_name[1:]:
+        for squad in id_to_squad_name:
             print name + "/" + team + "/" + squad
-            ini[team + "_" + squad + "_squad"] = server.addChannel(squad, ini[team])
+            cid = server.addChannel(squad, ini[team])
+            gamechanstate.links.append(cid)
+            ini[team + "_" + squad + "_squad"] = cid 
+            
             ini[team + "_" + squad + "_squad_leader"] = ini[team + "_" + squad + "_squad"]
             server.setACL(ini[team + "_" + squad + "_squad"],
                           [ACL(applyHere = True,
                                applySubs = False,
                                userid = -1,
-                               group = 'bf2%s_%s_%s_squad' % (name, team, squad),
-                               allow = EAT)],
+                               group = '~bf2_%s_squad' % squad,
+                               allow = EAT | W),
+                           ACL(applyHere = True,
+                               applySubs = False,
+                               userid = -1,
+                               group = '~bf2_commander',
+                               allow = EAT | W),
+                           ACL(applyHere = True,
+                               applySubs = False,
+                               userid = -1,
+                               group = '~bf2_squad_leader',
+                               allow = W)],
                           [], True)
     
+    server.setChannelState(gamechanstate)
     print "Channel structure created"
     
     print "Writing configuration to output file '%s'..." % option.out,
