@@ -43,7 +43,6 @@ try:
 except ImportError: # Fallback for python < 2.6
     import simplejson as json
 
-
 class bf2(MumoModule):
     default_config = {'bf2':(
                              ('gamecount', int, 1),
@@ -56,6 +55,7 @@ class bf2(MumoModule):
                              ('base', int, 0),
                              ('left', int, -1),
                              
+                             ('blufor', int, -1),
                              ('blufor_commander', int, -1),
                              ('blufor_no_squad', int, -1),
                              ('blufor_alpha_squad', int, -1),
@@ -77,6 +77,7 @@ class bf2(MumoModule):
                              ('blufor_india_squad', int, -1),
                              ('blufor_india_squad_leader', int, -1),
                              
+                             ('opfor', int, -1),
                              ('opfor_commander', int, -1),
                              ('opfor_no_squad', int, -1),
                              ('opfor_alpha_squad', int, -1),
@@ -115,8 +116,8 @@ class bf2(MumoModule):
         servers = set()
         for i in range(cfg.bf2.gamecount):
             try:
-                servers.add(getattr(cfg, "g%d" % i).mumble_server)
-            except AttributeError:
+                servers.add(cfg["g%d" % i].mumble_server)
+            except KeyError:
                 log.error("Invalid configuration. Game configuration for 'g%d' not found.", i)
                 return
         
@@ -174,52 +175,72 @@ class bf2(MumoModule):
         if not oli and nli:
             log.debug("User '%s' (%d|%d) on server %d now linked", newstate.name, newstate.session, newstate.userid, sid)
             server.addUserToGroup(0, session, "bf2_linked")
-        
-        if (opi != npi or opc != opi) and opi and opc:
-            log.debug("Removing user '%s' (%d|%d) on server %d from groups of game %s", newstate.name, newstate.session, newstate.userid, sid, og or ogcfgname)
-            server.removeUserFromGroup(ogcfg.base, session, "bf2%s_%s_commander" % (og, opi["team"]))
-            server.removeUserFromGroup(ogcfg.base, session, "bf2%s_%s_%s_squad_leader" % (og, opi["team"], self.id_to_squad_name[opi["squad"]]))
-            server.removeUserFromGroup(ogcfg.base, session, "bf2%s_%s_%s_squad" % (og, opi["team"], self.id_to_squad_name[opi["squad"]]))
-            server.removeUserFromGroup(ogcfg.base, session, "bf2%s_%s" % (og, opi["team"]))
             
+        if opi and opc:
+            log.debug("Removing user '%s' (%d|%d) on server %d from groups of game %s", newstate.name, newstate.session, newstate.userid, sid, og or ogcfgname)
+            server.removeUserFromGroup(ogcfg["base"], session, "bf2_%s_game" % (og or ogcfgname))
+            
+            squadname = self.id_to_squad_name[opi["squad"]]
+            if opi["squad"] != 0:
+                server.removeUserFromGroup(ogcfg["%s_commander" % opi["team"]], session, "bf2_commander")
+                server.removeUserFromGroup(ogcfg["%s_%s_squad_leader" % (opi["team"], squadname)], session, "bf2_squad_leader")
+                server.removeUserFromGroup(ogcfg["%s_%s_squad_leader" % (opi["team"], squadname)], session, "bf2_%s_squad_leader" % squadname)
+            
+            server.removeUserFromGroup(ogcfg["%s_%s_squad" % (opi["team"], squadname)], session, "bf2_%s_squad_member" % squadname)
+            server.removeUserFromGroup(ogcfg[opi["team"]], session, "bf2_team")
             channame = "left"
-            newstate.channel = ogcfg.left
-        
+            newstate.channel = ogcfg["left"]
+            
         if npc and npi:
             log.debug("Updating user '%s' (%d|%d) on server %d in game %s: %s", newstate.name, newstate.session, newstate.userid, sid, ng or ngcfgname, str(npi))
             
-            # First add to team group
-            group = "bf2%s_%s" % (ng, npi["team"])
-            server.addUserToGroup(ngcfg.base, session, group)
-            log.debug("Added '%s' @ %s to group %s", newstate.name, ng or ngcfgname, group)
+            squadname = self.id_to_squad_name[npi["squad"]]
+            
+            # Add to game group
+            location = "base"
+            group = "bf2_%s_game" % (ng or ngcfgname)
+            server.addUserToGroup(ngcfg[location], session, group)
+            log.debug("Added '%s' @ %s to group %s in %s", newstate.name, ng or ngcfgname, group, location)
+            
+            # Then add to team group
+            location = npi["team"]
+            group = "bf2_team"
+            server.addUserToGroup(ngcfg[location], session, group)
+            log.debug("Added '%s' @ %s to group %s in %s", newstate.name, ng or ngcfgname, group, location)
             
             # Then add to squad group
-            group = "bf2%s_%s_%s_squad" % (ng, npi["team"], self.id_to_squad_name[npi["squad"]])
-            server.addUserToGroup(ngcfg.base, session, group)
-            log.debug("Added '%s' @ %s to group %s", newstate.name, ng or ngcfgname, group)
+            location = "%s_%s_squad" % (npi["team"], squadname)
+            group = "bf2_%s_squad_member" % squadname
+            server.addUserToGroup(ngcfg[location], session, group)
+            log.debug("Added '%s' @ %s to group %s in %s", newstate.name, ng or ngcfgname, group, location)
             
             channame = "%s_%s_squad" % (npi["team"], self.id_to_squad_name[npi["squad"]])
-            newstate.channel = getattr(ngcfg, channame)
+            newstate.channel = ngcfg[channame]
             
             if npi["squad_leader"]:
                 # In case the leader flag is set add to leader group
-                group = "bf2%s_%s_%s_squad_leader" % (ng, npi["team"], self.id_to_squad_name[npi["squad"]])
-                server.addUserToGroup(ngcfg.base, session, group)
-                log.debug("Added '%s' @ %s to group %s", newstate.name, ng or ngcfgname, group)
+                location = "%s_%s_squad_leader" % (npi["team"], squadname)
+                group = "bf2_%s_squad_leader" % squadname
+                server.addUserToGroup(ngcfg[location], session, group)
+                log.debug("Added '%s' @ %s to group %s in %s", newstate.name, ng or ngcfgname, group, location)
+                
+                group = "bf2_squad_leader"
+                server.addUserToGroup(ngcfg[location], session, group)
+                log.debug("Added '%s' @ %s to group %s in %s", newstate.name, ng or ngcfgname, group, location)
                 
                 # Override previous moves
                 channame = "%s_%s_squad_leader" % (npi["team"], self.id_to_squad_name[npi["squad"]])
-                newstate.channel = getattr(ngcfg, channame)
-
-
+                newstate.channel = ngcfg[channame]
+            
             if npi["commander"]:
-                group = "bf2%s_%s_commander" % (ng, npi["team"])
-                server.addUserToGroup(ngcfg.base, session, group)
-                log.debug("Added '%s' @ %s to group %s", newstate.name, ng or ngcfgname, group)
+                location = "%s_commander" % npi["team"]
+                group = "bf2_commander"
+                server.addUserToGroup(ngcfg[location], session, group)
+                log.debug("Added '%s' @ %s to group %s in %s", newstate.name, ng or ngcfgname, group, location)
                 
                 # Override previous moves
                 channame = "%s_commander" % npi["team"]
-                newstate.channel = getattr(ngcfg, channame)
+                newstate.channel = ngcfg[channame]
                 
         if oli and not nli:
             log.debug("User '%s' (%d|%d) on server %d no longer linked", newstate.name, newstate.session, newstate.userid, sid)
@@ -256,8 +277,10 @@ class bf2(MumoModule):
                state.context != self.sessions[sid][state.session].context:
                 # identity or context changed => update
                 update = True
-            else:
+            else: # id and context didn't change hence the old data must still be valid
                 state.is_linked = self.sessions[sid][state.session].is_linked
+                state.parsedcontext = self.sessions[sid][state.session].parsedcontext
+                state.parsedidentity = self.sessions[sid][state.session].parsedidentity
         else:
             if state.identity or state.context:
                 # New user with engaged plugin => update
