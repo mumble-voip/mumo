@@ -85,6 +85,13 @@ class Config(object):
                             self.__dict__[section].__dict__[name] = conv(cfg.get(section, name))
                         except (ValueError, ConfigParser.NoSectionError, ConfigParser.NoOptionError):
                             self.__dict__[section].__dict__[name] = vdefault
+    
+    def __getitem__(self, key):
+        try:
+            return getattr(self, key)
+        except AttributeError, e:
+            raise KeyError(e)
+        
 
 def x2bool(s):
     """

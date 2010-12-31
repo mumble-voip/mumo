@@ -130,6 +130,15 @@ value = True
         assert(cfg.world.domination == False)
         assert(cfg.somethingelse.bla == "test")
         assert(cfg.world.somenum == 0)
+        
+    def testGetItem(self):
+        cfg = Config(default=self.cfg_default)
+        assert(cfg["world"]["domination"] == False)
+        
+        def invalidaccess(c):
+            c["nointhisconfig"]
+            
+        self.assertRaises(KeyError, invalidaccess, cfg)
 
 
 if __name__ == "__main__":
