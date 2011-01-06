@@ -35,7 +35,8 @@
 # gamestate reported by Mumble positional audio plugins
 #
 
-from mumo_module import MumoModule
+from mumo_module import (MumoModule,
+                         x2bool)
 
 import re
 try:
@@ -50,6 +51,7 @@ class bf2(MumoModule):
                       lambda x: re.match('g\d+', x):(
                              ('name', str, ''),
                              ('mumble_server', int, 1),
+                             ('ipport_filter_negate', x2bool, False),
                              ('ipport_filter', re.compile, re.compile('.*')),
                              
                              ('base', int, 0),
@@ -304,9 +306,11 @@ class bf2(MumoModule):
                     # Try to find a matching game
                     gamename = "g%d" % i
                     gamecfg = getattr(cfg, gamename)
-                    if gamecfg.mumble_server == server.id() and \
-                        gamecfg.ipport_filter.match(context["ipport"]):
-                        break
+                    
+                    if gamecfg.mumble_server == server.id():
+                        not_matched = (gamecfg.ipport_filter.match(context["ipport"]) == None)
+                        if not_matched == gamecfg.ipport_filter_negate:
+                            break
                     gamename = None
                 
                 if not gamename:
