@@ -60,50 +60,50 @@ class bf2(MumoModule):
                              ('blufor', int, -1),
                              ('blufor_commander', int, -1),
                              ('blufor_no_squad', int, -1),
-                             ('blufor_alpha_squad', int, -1),
-                             ('blufor_alpha_squad_leader', int, -1),
-                             ('blufor_bravo_squad', int, -1),
-                             ('blufor_bravo_squad_leader', int, -1),
-                             ('blufor_charlie_squad', int, -1),
-                             ('blufor_charlie_squad_leader', int, -1),
-                             ('blufor_delta_squad', int, -1),
-                             ('blufor_delta_squad_leader', int, -1),
-                             ('blufor_echo_squad', int, -1),
-                             ('blufor_echo_squad_leader', int, -1),
-                             ('blufor_foxtrot_squad', int, -1),
-                             ('blufor_foxtrot_squad_leader', int, -1),
-                             ('blufor_golf_squad', int, -1),
-                             ('blufor_golf_squad_leader', int, -1),
-                             ('blufor_hotel_squad', int, -1),
-                             ('blufor_hotel_squad_leader', int, -1),
-                             ('blufor_india_squad', int, -1),
-                             ('blufor_india_squad_leader', int, -1),
+                             ('blufor_first_squad', int, -1),
+                             ('blufor_first_squad_leader', int, -1),
+                             ('blufor_second_squad', int, -1),
+                             ('blufor_second_squad_leader', int, -1),
+                             ('blufor_third_squad', int, -1),
+                             ('blufor_third_squad_leader', int, -1),
+                             ('blufor_fourth_squad', int, -1),
+                             ('blufor_fourth_squad_leader', int, -1),
+                             ('blufor_fifth_squad', int, -1),
+                             ('blufor_fifth_squad_leader', int, -1),
+                             ('blufor_sixth_squad', int, -1),
+                             ('blufor_sixth_squad_leader', int, -1),
+                             ('blufor_seventh_squad', int, -1),
+                             ('blufor_seventh_squad_leader', int, -1),
+                             ('blufor_eighth_squad', int, -1),
+                             ('blufor_eighth_squad_leader', int, -1),
+                             ('blufor_ninth_squad', int, -1),
+                             ('blufor_ninth_squad_leader', int, -1),
                              
                              ('opfor', int, -1),
                              ('opfor_commander', int, -1),
                              ('opfor_no_squad', int, -1),
-                             ('opfor_alpha_squad', int, -1),
-                             ('opfor_alpha_squad_leader', int, -1),
-                             ('opfor_bravo_squad', int, -1),
-                             ('opfor_bravo_squad_leader', int, -1),
-                             ('opfor_charlie_squad', int, -1),
-                             ('opfor_charlie_squad_leader', int, -1),
-                             ('opfor_delta_squad', int, -1),
-                             ('opfor_delta_squad_leader', int, -1),
-                             ('opfor_echo_squad', int, -1),
-                             ('opfor_echo_squad_leader', int, -1),
-                             ('opfor_foxtrot_squad', int, -1),
-                             ('opfor_foxtrot_squad_leader', int, -1),
-                             ('opfor_golf_squad', int, -1),
-                             ('opfor_golf_squad_leader', int, -1),
-                             ('opfor_hotel_squad', int, -1),
-                             ('opfor_hotel_squad_leader', int, -1),
-                             ('opfor_india_squad', int, -1),
-                             ('opfor_india_squad_leader', int, -1)
+                             ('opfor_first_squad', int, -1),
+                             ('opfor_first_squad_leader', int, -1),
+                             ('opfor_second_squad', int, -1),
+                             ('opfor_second_squad_leader', int, -1),
+                             ('opfor_third_squad', int, -1),
+                             ('opfor_third_squad_leader', int, -1),
+                             ('opfor_fourth_squad', int, -1),
+                             ('opfor_fourth_squad_leader', int, -1),
+                             ('opfor_fifth_squad', int, -1),
+                             ('opfor_fifth_squad_leader', int, -1),
+                             ('opfor_sixth_squad', int, -1),
+                             ('opfor_sixth_squad_leader', int, -1),
+                             ('opfor_seventh_squad', int, -1),
+                             ('opfor_seventh_squad_leader', int, -1),
+                             ('opfor_eighth_squad', int, -1),
+                             ('opfor_eighth_squad_leader', int, -1),
+                             ('opfor_ninth_squad', int, -1),
+                             ('opfor_ninth_squad_leader', int, -1)
                              ),
                     }
     
-    id_to_squad_name = ["no", "alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india"]
+    id_to_squad_name = ["no", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth"]
     
     def __init__(self, name, manager, configuration = None):
         MumoModule.__init__(self, name, manager, configuration)
@@ -179,10 +179,9 @@ class bf2(MumoModule):
             server.addUserToGroup(0, session, "bf2_linked")
             
         if opi and opc:
-            log.debug("Removing user '%s' (%d|%d) on server %d from groups of game %s", newstate.name, newstate.session, newstate.userid, sid, og or ogcfgname)
-            server.removeUserFromGroup(ogcfg["base"], session, "bf2_%s_game" % (og or ogcfgname))
-            
             squadname = self.id_to_squad_name[opi["squad"]]
+            log.debug("Removing user '%s' (%d|%d) on server %d from groups of game %s / squad %s", newstate.name, newstate.session, newstate.userid, sid, og or ogcfgname, squadname)
+            server.removeUserFromGroup(ogcfg["base"], session, "bf2_%s_game" % (og or ogcfgname))
             server.removeUserFromGroup(ogcfg[opi["team"]], session, "bf2_commander")
             server.removeUserFromGroup(ogcfg[opi["team"]], session, "bf2_squad_leader")
             server.removeUserFromGroup(ogcfg[opi["team"]], session, "bf2_%s_squad_leader" % squadname)
@@ -240,6 +239,8 @@ class bf2(MumoModule):
                 newstate.channel = ngcfg[channame]
                 
         if oli and not nli:
+            channame = "left"
+            newstate.channel = ogcfg["left"]
             log.debug("User '%s' (%d|%d) on server %d no longer linked", newstate.name, newstate.session, newstate.userid, sid)
             server.removeUserFromGroup(0, session, "bf2_linked")
                 

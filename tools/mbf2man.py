@@ -60,6 +60,8 @@ if __name__ == "__main__":
                       help = 'Path to slice file', default = 'Murmur.ice')
     parser.add_option('-s', '--secret',
                       help = 'Ice secret', default = '')
+    parser.add_option('-l', '--linkteams', action = 'store_true',
+                      help = 'Link teams so opposing players can hear each other', default = False)
     parser.add_option('-n', '--name',
                       help = 'Treename', default = 'BF2')
     parser.add_option('-o', '--out', default = 'bf2.ini',
@@ -163,11 +165,12 @@ if __name__ == "__main__":
     ini['left'] = basechan
     gamechan = server.addChannel(name, basechan)
     
+    # Relevant function signatures
+    # Murmur.ACL(self, applyHere=False, applySubs=False,
+    #                   inherited=False, userid=0, group='', allow=0, deny=0)
     
-    # mice.Murmur.ACL(self, applyHere=False, applySubs=False,
-    #                       inherited=False, userid=0, group='', allow=0, deny=0)
-    
-    # mice.s.setACL(self, channelid, acls, groups, inherit, _ctx=None)
+    # server.setACL(self, channelid, acls, groups, inherit, _ctx=None)
+    #
     server.setACL(gamechan,
                   [ACL(applyHere = True,
                        applySubs = True,
@@ -189,11 +192,14 @@ if __name__ == "__main__":
     gamechanstate = server.getChannelState(gamechan)
 
     teams = ["blufor", "opfor"]
-    id_to_squad_name = ["no", "alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india"]
+    id_to_squad_name = ["no", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth"]
     for team in teams:
         print name + "/" + team
         cid = server.addChannel(team, gamechan)
-        gamechanstate.links.append(cid)
+        teamchanstate = server.getChannelState(cid)
+        if option.linkteams:
+            gamechanstate.links.append(cid)
+
         ini[team] = cid
         
         server.setACL(ini[team],
@@ -206,7 +212,7 @@ if __name__ == "__main__":
         
         print name + "/" + team + "_commander"
         cid = server.addChannel("commander", ini[team])
-        gamechanstate.links.append(cid)
+        teamchanstate.links.append(cid)
         ini[team + "_commander"] = cid 
         
         server.setACL(ini[team + "_commander"],
@@ -229,7 +235,7 @@ if __name__ == "__main__":
         for squad in id_to_squad_name:
             print name + "/" + team + "/" + squad
             cid = server.addChannel(squad, ini[team])
-            gamechanstate.links.append(cid)
+            teamchanstate.links.append(cid)
             ini[team + "_" + squad + "_squad"] = cid 
             
             ini[team + "_" + squad + "_squad_leader"] = ini[team + "_" + squad + "_squad"]
@@ -250,7 +256,7 @@ if __name__ == "__main__":
                                group = '~bf2_squad_leader',
                                allow = W)],
                           [], True)
-    
+        server.setChannelState(teamchanstate)
     server.setChannelState(gamechanstate)
     print "Channel structure created"
     
