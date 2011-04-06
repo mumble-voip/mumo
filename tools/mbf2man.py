@@ -191,11 +191,25 @@ if __name__ == "__main__":
     
     gamechanstate = server.getChannelState(gamechan)
 
-    teams = ["blufor", "opfor"]
-    id_to_squad_name = ["no", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth"]
-    for team in teams:
-        print name + "/" + team
-        cid = server.addChannel(team, gamechan)
+    teams = { 
+        "opfor":  "Team 1", 
+        "blufor": "Team 2" 
+    }
+    id_to_squad_name = { 
+        "no":      "No Squad", 
+        "first":   "Squad 1", 
+        "second":  "Squad 2", 
+        "third":   "Squad 3", 
+        "fourth":  "Squad 4", 
+        "fifth":   "Squad 5", 
+        "sixth":   "Squad 6", 
+        "seventh": "Squad 7", 
+        "eighth":  "Squad 8", 
+        "ninth":   "Squad 9" 
+    }
+    for team,team_name in teams.items():
+        print name + "/" + team_name
+        cid = server.addChannel(team_name, gamechan)
         teamchanstate = server.getChannelState(cid)
         if option.linkteams:
             gamechanstate.links.append(cid)
@@ -210,8 +224,8 @@ if __name__ == "__main__":
                            allow = EAT | W)],
                       [], True)
         
-        print name + "/" + team + "_commander"
-        cid = server.addChannel("commander", ini[team])
+        print name + "/" + team_name + "/Commander"
+        cid = server.addChannel("Commander", ini[team])
         teamchanstate.links.append(cid)
         ini[team + "_commander"] = cid 
         
@@ -232,9 +246,9 @@ if __name__ == "__main__":
         state.position = -1
         server.setChannelState(state)
         
-        for squad in id_to_squad_name:
-            print name + "/" + team + "/" + squad
-            cid = server.addChannel(squad, ini[team])
+        for squad,squad_name in id_to_squad_name.items():
+            print name + "/" + team_name + "/" + squad_name
+            cid = server.addChannel(squad_name, ini[team])
             teamchanstate.links.append(cid)
             ini[team + "_" + squad + "_squad"] = cid 
             
