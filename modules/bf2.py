@@ -239,8 +239,6 @@ class bf2(MumoModule):
                 newstate.channel = ngcfg[channame]
                 
         if oli and not nli:
-            channame = "left"
-            newstate.channel = ogcfg["left"]
             log.debug("User '%s' (%d|%d) on server %d no longer linked", newstate.name, newstate.session, newstate.userid, sid)
             server.removeUserFromGroup(0, session, "bf2_linked")
                 
