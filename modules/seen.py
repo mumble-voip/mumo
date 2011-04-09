@@ -37,10 +37,12 @@
 from mumo_module import (commaSeperatedIntegers,
                          MumoModule)
 
+from datetime import timedelta
+
 class seen(MumoModule):
     default_config = {'seen':(
                                 ('servers', commaSeperatedIntegers, []),
-                                ('keyword', str, '!seen'),
+                                ('keyword', str, '!seen')
                                 )
                     }
     
@@ -62,27 +64,55 @@ class seen(MumoModule):
     
     def disconnected(self): pass
     
+    def sendMessage(self, server, user, message, msg):
+        if message.channels:
+            server.sendMessageChannel(user.channel, False, msg)
+        else:
+            server.sendMessage(user.session, msg)
+            server.sendMessage(message.sessions[0], msg)
     #
     #--- Server callback functions
     #
     
     def userTextMessage(self, server, user, message, current=None):
-        if message.text.startswith(self.keyword):
+        if message.text.startswith(self.keyword) and \
+            (len(message.sessions) == 1 or
+              (len(message.channels) == 1 and \
+              message.channels[0] == user.channel)):
+            
             tuname = message.text[len(self.keyword):].strip()
             self.log().debug("User %s (%d|%d) on server %d asking for '%s'",
                              user.name, user.session, user.userid, server.id(), tuname)
 
+            # Check for self referencing
+            if tuname == user.name:
+                msg = "User '%s' knows how to spell his name" % tuname
+                self.sendMessage(server, user, message, msg)
+                return
+            
+            # Check online users
+            for cuser in server.getUsers().itervalues():
+                if tuname == cuser.name:
+                    msg = "User '%s' is currently online, has been idle for %s" % (tuname,
+                                                                                           timedelta(seconds=cuser.idlesecs))
+                    self.sendMessage(server, user, message, msg)
+                    return
+                
+            # Check registrations
             for cuid, cuname in server.getRegisteredUsers(tuname).iteritems():
                 if cuname == tuname:
                     ureg = server.getRegistration(cuid)
                     if ureg:
-                        server.sendMessage(user.session,
-                                           "User '%s' was last active %s UTC" % (tuname,
-                                                                             ureg[self.murmur.UserInfo.UserLastActive]))
+                        msg = "User '%s' was last seen %s UTC" % (tuname,
+                                                                    ureg[self.murmur.UserInfo.UserLastActive])
+                        
+                        self.sendMessage(server, user, message, msg)
                         return
+              
+            msg = "I don't know who user '%s' is" % tuname
+            self.sendMessage(server, user, message, msg)
+
             
-            server.sendMessage(user.session,
-                               "I don't know who user '%s' is" % tuname)
     
     def userConnected(self, server, state, context = None): pass
     def userDisconnected(self, server, state, context = None): pass
