@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8
 
-# Copyright (C) 2010 Stefan Hacker <dd0t@users.sourceforge.net>
+# Copyright (C) 2010-2011 Stefan Hacker <dd0t@users.sourceforge.net>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -342,6 +342,9 @@ def do_main_program():
         @checkSecret
         @forwardServer
         def channelStateChanged(self, c, current=None): pass
+        @checkSecret
+        @forwardServer
+        def userTextMessage(self, u, m, current=None) : pass
     
     class contextCallback(Murmur.ServerContextCallback):
         def __init__(self, manager, server, sid):

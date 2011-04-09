@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8
 
-# Copyright (C) 2010 Stefan Hacker <dd0t@users.sourceforge.net>
+# Copyright (C) 2010-2011 Stefan Hacker <dd0t@users.sourceforge.net>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -359,7 +359,8 @@ class bf2(MumoModule):
         
     def userConnected(self, server, state, context = None):
         self.handle(server, state)
-    
+        
+    def userTextMessage(self, server, user, message, current=None): pass
     def channelCreated(self, server, state, context = None): pass
     def channelRemoved(self, server, state, context = None): pass
     def channelStateChanged(self, server, state, context = None): pass

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8
 
-# Copyright (C) 2010 Stefan Hacker <dd0t@users.sourceforge.net>
+# Copyright (C) 2010-2011 Stefan Hacker <dd0t@users.sourceforge.net>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -37,11 +37,9 @@
 # once they become active again
 #
 
-from mumo_module import (x2bool,
-                         commaSeperatedIntegers,
+from mumo_module import (commaSeperatedIntegers,
                          commaSeperatedBool,
-                         MumoModule,
-                         Config)
+                         MumoModule)
 
 from threading import Timer
 import re
@@ -204,6 +202,7 @@ class idlemove(MumoModule):
         self.UpdateUserAutoAway(server, state)
         
     def userConnected(self, server, state, context=None): pass # Unused callbacks
+    def userTextMessage(self, server, user, message, current=None): pass
     def channelCreated(self, server, state, context=None): pass
     def channelRemoved(self, server, state, context=None): pass
     def channelStateChanged(self, server, state, context=None): pass

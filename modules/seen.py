@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8
 
-# Copyright (C) 2010-2011 Stefan Hacker <dd0t@users.sourceforge.net>
+# Copyright (C) 2011 Stefan Hacker <dd0t@users.sourceforge.net>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -30,38 +30,31 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #
-# onjoin.py
-# This module allows moving players into a specific channel once
-# they connect regardless of which channel they were in when they left.
+# seen.py
+# This module allows asking the server for the last time it saw a specific player
 #
 
 from mumo_module import (commaSeperatedIntegers,
                          MumoModule)
-import re
 
-
-class onjoin(MumoModule):
-    default_config = {'onjoin':(
+class seen(MumoModule):
+    default_config = {'seen':(
                                 ('servers', commaSeperatedIntegers, []),
-                                ),
-                      'all':(
-                             ('channel', int, 1),
-                             ),
-                      lambda x: re.match('server_\d+', x):(
-                                ('channel', int, 1),
+                                ('keyword', str, '!seen'),
                                 )
                     }
     
     def __init__(self, name, manager, configuration = None):
         MumoModule.__init__(self, name, manager, configuration)
         self.murmur = manager.getMurmurModule()
+        self.keyword = self.cfg().seen.keyword
 
     def connected(self):
         manager = self.manager()
         log = self.log()
         log.debug("Register for Server callbacks")
         
-        servers = self.cfg().onjoin.servers
+        servers = self.cfg().seen.servers
         if not servers:
             servers = manager.SERVERS_ALL
             
@@ -73,26 +66,28 @@ class onjoin(MumoModule):
     #--- Server callback functions
     #
     
-    def userConnected(self, server, state, context = None):
-        log = self.log()
-        sid = server.id()
-        try:
-            scfg = getattr(self.cfg(), 'server_%d' % sid)
-        except AttributeError:
-            scfg = self.cfg().all
-        
-        if state.channel != scfg.channel:
-            log.debug("Moving user '%s' from channel %d to %d on server %d", state.name, state.channel, scfg.channel, sid)
-            state.channel = scfg.channel
+    def userTextMessage(self, server, user, message, current=None):
+        if message.text.startswith(self.keyword):
+            tuname = message.text[len(self.keyword):].strip()
+            self.log().debug("User %s (%d|%d) on server %d asking for '%s'",
+                             user.name, user.session, user.userid, server.id(), tuname)
+
+            for cuid, cuname in server.getRegisteredUsers(tuname).iteritems():
+                if cuname == tuname:
+                    ureg = server.getRegistration(cuid)
+                    if ureg:
+                        server.sendMessage(user.session,
+                                           "User '%s' was last active %s UTC" % (tuname,
+                                                                             ureg[self.murmur.UserInfo.UserLastActive]))
+                        return
             
-            try:
-                server.setState(state)
-            except self.murmur.InvalidChannelException:
-                log.error("Moving user '%s' failed, target channel %d does not exist on server %d", state.name, scfg.channel, sid)
+            server.sendMessage(user.session,
+                               "I don't know who user '%s' is" % tuname)
     
+    def userConnected(self, server, state, context = None): pass
     def userDisconnected(self, server, state, context = None): pass
     def userStateChanged(self, server, state, context = None): pass
-    def userTextMessage(self, server, user, message, current=None): pass
+    
     def channelCreated(self, server, state, context = None): pass
     def channelRemoved(self, server, state, context = None): pass
     def channelStateChanged(self, server, state, context = None): pass
