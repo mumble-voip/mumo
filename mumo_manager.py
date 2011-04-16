@@ -398,7 +398,7 @@ class MumoManager(Worker):
         if not names:
             # If no names are given load all modules that have a configuration in the cfg_dir
             if not os.path.isdir(self.cfg.modules.cfg_dir):
-                msg = "Module directory '%s' not found" % self.cfg.modules.mod_dir
+                msg = "Module configuration directory '%s' not found" % self.cfg.modules.cfg_dir
                 self.log().error(msg)
                 raise FailedLoadModuleImportException(msg)
             
