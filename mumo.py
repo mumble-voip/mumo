@@ -63,6 +63,7 @@ default.update({'ice':(('host', str, '127.0.0.1'),
                       
                'iceraw':None,
                'murmur':(('servers', commaSeperatedIntegers, []),),
+               'system':(('pidfile', str, 'mumo.pid'),),
                'log':(('level', int, logging.DEBUG),
                       ('file', str, 'mumo.log'))})
 
@@ -463,6 +464,7 @@ if __name__ == '__main__':
         if option.force_app:
             raise ImportError # Pretend that we couldn't import the daemon lib
         import daemon
+        import daemon.pidlockfile
     except ImportError:
         if option.force_daemon:
             print >> sys.stderr, 'Fatal error, could not daemonize process due to missing "daemon" library, ' \
@@ -470,8 +472,10 @@ if __name__ == '__main__':
             sys.exit(1)
         ret = do_main_program()
     else:
+        pidfile = daemon.pidlockfile.TimeoutPIDLockFile(cfg.system.pidfile, 5)
         context = daemon.DaemonContext(working_directory=sys.path[0],
-                                       stderr=logfile)
+                                       stderr=logfile,
+                                       pidfile=pidfile)
         context.__enter__()
         try:
             ret = do_main_program()
