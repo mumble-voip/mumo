@@ -29,9 +29,12 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import os
 import sys
 import Ice
+import IcePy
 import logging
+import tempfile
 from config import (Config,
                     x2bool,
                     commaSeperatedIntegers)
@@ -54,7 +57,7 @@ cfgfile = 'mumo.ini'
 default = MumoManager.cfg_default.copy()
 default.update({'ice':(('host', str, '127.0.0.1'),
                       ('port', int, 6502),
-                      ('slice', str, 'Murmur.ice'),
+                      ('slice', str, ''),
                       ('secret', str, ''),
                       ('slicedir', str, '/usr/share/slice'),
                       ('watchdog', int, 30),
@@ -67,16 +70,61 @@ default.update({'ice':(('host', str, '127.0.0.1'),
                'log':(('level', int, logging.DEBUG),
                       ('file', str, 'mumo.log'))})
 
+def dynload_slice(prx):
+    #
+    #--- Dynamically retrieves the slice file from the target server
+    #
+    info("Loading slice from server")
+    try:
+        slice = IcePy.Operation('getSlice', Ice.OperationMode.Idempotent, Ice.OperationMode.Idempotent, True, (), (), (), IcePy._t_string, ()).invoke(prx, ((), None))
+
+        (dynslicefiledesc, dynslicefilepath)  = tempfile.mkstemp(suffix = '.ice')
+        dynslicefile = os.fdopen(dynslicefiledesc, 'w')
+        dynslicefile.write(slice)
+        dynslicefile.flush()
+        Ice.loadSlice('', ['-I' + Ice.getSliceDir(), dynslicefilepath])
+        dynslicefile.close()
+        os.remove(dynslicefilepath)
+    except Exception, e:
+        error("Retrieving slice from server failed")
+        exception(e)
+        raise
+
+
+def fsload_slice(slice):
+    #
+    #--- Load slice from file system
+    #
+    debug("Loading slice from filesystem: %s" % slice)
+    if not hasattr(Ice, "getSliceDir"):
+        Ice.loadSlice('-I%s %s' % (cfg.ice.slicedir, slice))
+    else:
+        Ice.loadSlice('', ['-I' + Ice.getSliceDir(), slice])
+
 def do_main_program():
     #
     #--- Moderator implementation
     #    All of this has to go in here so we can correctly daemonize the tool
     #    without loosing the file descriptors opened by the Ice module
-    if not hasattr(Ice, "getSliceDir"):
-        Ice.loadSlice('-I%s %s' % (cfg.ice.slicedir, cfg.ice.slice))
-    else:
-        Ice.loadSlice('', ['-I' + Ice.getSliceDir(), cfg.ice.slice])
 
+    debug('Initializing Ice')
+    initdata = Ice.InitializationData()
+    initdata.properties = Ice.createProperties([], initdata.properties)
+    for prop, val in cfg.iceraw:
+        initdata.properties.setProperty(prop, val)
+        
+    initdata.properties.setProperty('Ice.ImplicitContext', 'Shared')
+    initdata.logger = CustomLogger()
+
+    ice = Ice.initialize(initdata)
+    prxstr = 'Meta:tcp -h %s -p %d' % (cfg.ice.host, cfg.ice.port)
+    prx = ice.stringToProxy(prxstr)
+    
+    if not cfg.ice.slice:
+        dynload_slice(prx)
+    else:
+        fsload_slice(cfg.ice.slice)
+    
     import Murmur
     
     class mumoIceApp(Ice.Application):
@@ -117,8 +165,8 @@ def do_main_program():
                 warning('Consider using an ice secret to improve security')
     
             info('Connecting to Ice server (%s:%d)', cfg.ice.host, cfg.ice.port)
-            base = ice.stringToProxy('Meta:tcp -h %s -p %d' % (cfg.ice.host, cfg.ice.port))
-            self.meta = Murmur.MetaPrx.uncheckedCast(base)
+            base = ice.stringToProxy(prxstr)
+            self.meta =Murmur.MetaPrx.uncheckedCast(base)
         
             if cfg.ice.callback_port > 0:
                 cbp = ' -p %d' % cfg.ice.callback_port
@@ -368,15 +416,7 @@ def do_main_program():
     manager.loadModules()
     manager.startModules()
     
-    debug('Initializing Ice')
-    initdata = Ice.InitializationData()
-    initdata.properties = Ice.createProperties([], initdata.properties)
-    for prop, val in cfg.iceraw:
-        initdata.properties.setProperty(prop, val)
-        
-    initdata.properties.setProperty('Ice.ImplicitContext', 'Shared')
-    initdata.logger = CustomLogger()
-    
+    debug("Initializing mumoIceApp") 
     app = mumoIceApp(manager)
     state = app.main(sys.argv[:1], initData=initdata)
     
