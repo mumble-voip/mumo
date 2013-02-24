@@ -54,6 +54,7 @@ domination = True
 somestr = Blabla
 somenum = 10
 testfallbacknum = asdas
+blubber = Things %(doesnotexistsasdefault)s
 [Server_10]
 value = False
 [Server_9]
@@ -64,7 +65,8 @@ value = True
     cfg_default = {'world':(('domination', x2bool, False),
                            ('somestr', str, "fail"),
                            ('somenum', int, 0),
-                           ('somenumtest', int, 1)),
+                           ('somenumtest', int, 1),
+                           ('blubber', str, "empty")),
                     (lambda x: re.match("Server_\d+",x)):(('value', x2bool, True),),
                    'somethingelse':(('bla', str, "test"),)}
 
@@ -118,6 +120,7 @@ value = True
             assert(cfg.world.somestr == "Blabla")
             assert(cfg.world.somenum == 10)
             self.assertRaises(AttributeError, getattr, cfg.world, "testfallbacknum")
+            self.assertEqual(cfg.world.blubber, "Things %(doesnotexistsasdefault)s")
             assert(cfg.somethingelse.bla == "test")
             assert(cfg.Server_10.value == False)
             assert(cfg.Server_2.value == True)

@@ -43,7 +43,7 @@ class Config(object):
         
         sections = set(default.iterkeys())
         if filename:
-            cfg = ConfigParser.ConfigParser()
+            cfg = ConfigParser.RawConfigParser()
             cfg.optionxform = str
             cfg.read(filename)
             sections.update(cfg.sections())
