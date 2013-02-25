@@ -29,6 +29,16 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from worker_test import *
-from config_test import *
-from mumo_manager_test import *
+if __name__ == "__main__":
+    import unittest
+    
+    from worker_test import *
+    from config_test import *
+    from mumo_manager_test import *
+    
+    from modules.source.source_test import *
+    from modules.source.users_test import *
+    from modules.source.db_test import *
+
+    #import sys;sys.argv = ['', 'Test.testName']
+    unittest.main()
