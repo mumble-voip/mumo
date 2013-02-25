@@ -134,6 +134,7 @@ value = True
     def testGetItem(self):
         cfg = Config(default=self.cfg_default)
         assert(cfg["world"]["domination"] == False)
+        assert("world" in cfg)
         
         def invalidaccess(c):
             c["nointhisconfig"]

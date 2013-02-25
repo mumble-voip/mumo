@@ -87,11 +87,10 @@ class Config(object):
                             self.__dict__[section].__dict__[name] = vdefault
     
     def __getitem__(self, key):
-        try:
-            return getattr(self, key)
-        except AttributeError, e:
-            raise KeyError(e)
-        
+        return self.__dict__.__getitem__(key)
+    
+    def __contains__(self, key):
+        return self.__dict__.__contains__(key)
 
 def x2bool(s):
     """
