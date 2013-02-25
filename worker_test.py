@@ -30,11 +30,14 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import unittest
+
 import worker
 from worker import Worker, local_thread, local_thread_blocking
 from Queue import Queue
 from logging.handlers import BufferingHandler
 from logging import ERROR
+import logging
+
 from threading import Event
 from time import sleep
     
@@ -93,13 +96,20 @@ class WorkerTest(unittest.TestCase):
         
         q = Queue()
         self.q = q
-        self.w = ATestWorker("Test", q)
-        l = self.w.log()
+        
+        NAME = "Test"
+        l = logging.getLogger(NAME)
+        
+        self.w = ATestWorker(NAME, q)
+        self.assertEqual(self.w.log(), l)
+        
+        l.propagate = 0
         l.addHandler(self.buha)
-        assert(self.w.started == False)
+        
+        self.assertFalse(self.w.started)
         self.w.start()
         sleep(0.05)
-        assert(self.w.started == True)
+        self.assertTrue(self.w.started)
 
     def testName(self):
         assert(self.w.name() == "Test")

@@ -33,14 +33,15 @@ import unittest
 import Queue
 from mumo_manager import MumoManager, MumoManagerRemote
 from mumo_module import MumoModule
-from logging import basicConfig, ERROR
+from logging import basicConfig, ERROR, getLogger
 import logging
 from threading import Event
 
 
 class MumoManagerTest(unittest.TestCase):
     def setUp(self):
-        basicConfig(level = ERROR)
+        l = getLogger("MumoManager")
+        l.disabled = True
         
         class MyModule(MumoModule):
             def __init__(self, name, manager, configuration = None):
