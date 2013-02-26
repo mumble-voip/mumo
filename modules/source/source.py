@@ -165,11 +165,11 @@ class source(MumoModule):
         
         if moved and old:
             # If moved from a valid game state perform channel use check
-            chan = self.db.channelForCid(sid, old.state.channel)
+            chan = self.db.channelFor(sid, old.game, old.server, old.identity['team'])
             if chan:
-                _, _, game, _, _ = chan
+                _, cid, game, _, _ = chan
                 if self.gameCfg(game, "deleteifunused"):
-                    self.deleteIfUnused(mumble_server, old.state.channel)
+                    self.deleteIfUnused(mumble_server, cid)
         
     
     
@@ -185,7 +185,6 @@ class source(MumoModule):
         except IndexError:
             return str(index)
     
-
     def getOrCreateGameChannelFor(self, mumble_server, game, server, sid, cfg, log, namevars):
         game_cid = self.db.cidFor(sid, game)
         if game_cid == None:
