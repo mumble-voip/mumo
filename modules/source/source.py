@@ -50,18 +50,17 @@ class source(MumoModule):
                              ('name', str, "%(game)s"),
                              ('servername', str, "%(server)s"),
                              ('teams', commaSeperatedStrings, ["Lobby", "Spectator", "Team one", "Team two", "Team three", "Team four"]),
-                             ('groups', commaSeperatedStrings, ["%(game)s", "%(game)s_%(team)s", "%(game)s_%(team)s_%(channelid)d"]),
                              ('restrict', x2bool, True),
                              ('serverregex', re.compile, re.compile("^\[[\w\d\-\(\):]{1,20}\]$")),
-                             ('createifmissing', x2bool, True),
                              ('deleteifunused', x2bool, True) 
                           )
     
     default_config = {'source':(
                              ('database', str, "source.sqlite"),
                              ('basechannelid', int, 0),
-                             ('servers', commaSeperatedIntegers, []),
-                             ('gameregex', re.compile, re.compile("^(tf|dod|cstrike)$"))
+                             ('mumbleservers', commaSeperatedIntegers, []),
+                             ('gameregex', re.compile, re.compile("^(tf|dod|cstrike)$")),
+                             ('groupprefix', str, "source_")
                              ),
                       
                       # The generic section defines default values which can be overridden in
@@ -93,7 +92,7 @@ class source(MumoModule):
         
         self.meta = manager.getMeta()
         
-        servers = set(cfg.source.servers)
+        servers = set(cfg.source.mumbleservers)
         if not servers:
             servers = manager.SERVERS_ALL
         
