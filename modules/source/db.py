@@ -31,6 +31,8 @@
 
 import sqlite3
 
+#TODO: Functions returning channels probably should return a dict instead of a tuple
+
 class SourceDB(object):
     def __init__(self, path = ":memory:"):
         self.db = sqlite3.connect(path)
@@ -54,6 +56,25 @@ class SourceDB(object):
         
         v = self.db.execute("SELECT cid FROM source WHERE sid is ? and game is ? and server is ? and team is ?", [sid, game, server, team]).fetchone()
         return v[0] if v else None
+
+    def channelForCid(self, sid, cid):
+        assert(sid != None and cid != None)
+        return self.db.execute("SELECT sid, cid, game, server, team FROM source WHERE sid is ? and cid is ?", [sid, cid]).fetchone()
+        
+    def channelFor(self, sid, game, server = None, team = None):
+        """ Returns matching channel as (sid, cid, game, server team) tuple """
+        assert(sid != None and game != None)
+        assert(not (team != None and server == None))
+        
+        v = self.db.execute("SELECT sid, cid, game, server, team FROM source WHERE sid is ? and game is ? and server is ? and team is ?", [sid, game, server, team]).fetchone()
+        return v
+    
+    def channelsFor(self, sid, game, server = None, team = None):
+        assert(sid != None and game != None)
+        assert(not (team != None and server == None))
+        
+        suffix, params = self.__whereClauseForOptionals(server, team)
+        return self.db.execute("SELECT sid, cid, game, server, team FROM source WHERE sid is ? and game is ?" + suffix, [sid, game] + params).fetchall()
     
     def registerChannel(self, sid, cid, game, server = None, team = None):
         assert(sid != None and game != None)
@@ -63,19 +84,27 @@ class SourceDB(object):
         self.db.commit()
         return True
     
+    def __whereClauseForOptionals(self, server, team):
+        """
+        Generates where class conditions that interpret missing server
+        or team as "don't care".
+        
+        Returns (suffix, additional parameters) tuple
+        """
+        
+        if server != None and team != None:
+            return (" and server is ? and team is ?", [server, team])
+        elif server != None:
+            return (" and server is ?", [server])
+        else:
+            return ("", [])
+        
     def unregisterChannel(self, sid, game, server = None, team = None):
         assert(sid != None and game != None)
         assert(not (team != None and server == None))
         
-        base = "DELETE FROM source WHERE sid is ? and game is ?"
-        
-        if server != None and team != None:
-            self.db.execute(base + " and server is ? and team is ?", [sid, game, server, team])
-        elif server != None:
-            self.db.execute(base + " and server is ?", [sid, game, server])
-        else:
-            self.db.execute(base, [sid, game])
-        
+        suffix, params = self.__whereClauseForOptionals(server, team)
+        self.db.execute("DELETE FROM source WHERE sid is ? and game is ?" + suffix, [sid, game] + params)
         self.db.commit()
         
     def dropChannel(self, sid, cid):
@@ -83,6 +112,11 @@ class SourceDB(object):
         self.db.execute("DELETE FROM source WHERE sid is ? and cid is ?", [sid, cid])
         self.db.commit()
     
+    def isRegisteredChannel(self, sid, cid):
+        """ Returns true if a channel with given sid and cid is registered """
+        res = self.db.execute("SELECT cid FROM source WHERE sid is ? and cid is ?", [sid, cid]).fetchone()
+        return res != None
+        
     def registeredChannels(self):
         """ Returns channels as a list of (sid, cid, game, server team) tuples grouped by sid """
         return self.db.execute("SELECT sid, cid, game, server, team FROM source ORDER by sid").fetchall()

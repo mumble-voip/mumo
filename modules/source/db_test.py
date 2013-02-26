@@ -140,6 +140,83 @@ class SourceDBTest(unittest.TestCase):
         
         self.assertEqual(self.db.registeredChannels(), expected)
            
+    def testIsRegisteredChannel(self):
+        self.db.reset()
+        sid = 1; cid = 0; game = "tf"
+        self.db.registerChannel(sid, cid, game)
+        
+        self.assertTrue(self.db.isRegisteredChannel(sid, cid))
+        self.assertFalse(self.db.isRegisteredChannel(sid+1, cid))
+        self.assertFalse(self.db.isRegisteredChannel(sid, cid+1))
+        
+        self.db.unregisterChannel(sid, game)
+        
+        self.assertFalse(self.db.isRegisteredChannel(sid, cid))
+        
+    def testChannelFor(self):
+        self.db.reset()
+        sid = 1; cid = 0; game = "tf"; server = "serv"; team = 0
+        self.db.registerChannel(sid, cid, game)
+        self.db.registerChannel(sid, cid+1, game, server)
+        self.db.registerChannel(sid, cid+2, game, server, team)
+        
+        res = self.db.channelFor(sid, game, server, team)
+        self.assertEqual(res, (sid, cid + 2, game, server, team))
+        
+        res = self.db.channelFor(sid, game, server)
+        self.assertEqual(res, (sid, cid + 1, game, server, None))
+        
+        res = self.db.channelFor(sid, game)
+        self.assertEqual(res, (sid, cid, game, None, None))
+        
+        res = self.db.channelFor(sid, game, server, team+5)
+        self.assertEqual(res, None)
+        
+    def testChannelForCid(self):
+        self.db.reset()
+        sid = 1; cid = 0; game = "tf"; server = "serv"; team = 0
+        self.db.registerChannel(sid, cid, game)
+        self.db.registerChannel(sid, cid+1, game, server)
+        self.db.registerChannel(sid, cid+2, game, server, team)
+        
+        res = self.db.channelForCid(sid, cid)
+        self.assertEqual(res, (sid, cid, game, None, None))
+        
+        
+        res = self.db.channelForCid(sid, cid + 1)
+        self.assertEqual(res, (sid, cid + 1, game, server, None))
+        
+        
+        res = self.db.channelForCid(sid, cid + 2)
+        self.assertEqual(res, (sid, cid + 2, game, server, team))
+        
+        
+        res = self.db.channelForCid(sid, cid + 3)
+        self.assertEqual(res, None)
+        
+    def testChannelsFor(self):
+        self.db.reset()
+        sid = 1; cid = 0; game = "tf"; server = "serv"; team = 0
+        self.db.registerChannel(sid, cid, game)
+        self.db.registerChannel(sid, cid+1, game, server)
+        self.db.registerChannel(sid, cid+2, game, server, team)
+        
+        chans = ((sid, cid+2, game, server, team),
+                 (sid, cid+1, game, server, None),
+                 (sid, cid, game, None, None))
+        
+        res = self.db.channelsFor(sid, game, server, team)
+        self.assertItemsEqual(res, chans[0:1])
+        
+        res = self.db.channelsFor(sid, game, server)
+        self.assertItemsEqual(res, chans[0:2])
+        
+        res = self.db.channelsFor(sid, game)
+        self.assertItemsEqual(res, chans)
+        
+        res = self.db.channelsFor(sid+1, game)
+        self.assertItemsEqual(res, [])
+        
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
     unittest.main()
