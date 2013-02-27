@@ -43,6 +43,11 @@ have any improvements or suggestions please contact us. Whether you
 prefer a pull request, visiting us in IRC in #mumble on Freenode or
 starting a thread in our forums at http://sourceforge.net/apps/phpbb/mumble/ is up to you.
 
+To configure and run mumo take a look at the mumo.ini and the module
+specific configurations in modules-available folder. Enabling modules
+is done by linking the configuration in modules-available to the
+modules-enabled folder.
+
 mumo requires:
  - python 2.7*
  - python-zeroc-ice
