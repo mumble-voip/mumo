@@ -126,6 +126,34 @@ class source(MumoModule):
     
     def disconnected(self): pass
     
+    def removeFromGroups(self, mumble_server, session, game, server, team):
+        sid = mumble_server.id()
+        prefix = self.cfg().source.groupprefix
+        game_cid = self.db.cidFor(sid, game)
+        
+        group = prefix + game
+        mumble_server.removeUserFromGroup(game_cid, session, group) # Game
+        
+        group += "_" + server
+        mumble_server.removeUserFromGroup(game_cid, session, group) # Server
+        
+        group += "_" + str(team)
+        mumble_server.removeUserFromGroup(game_cid, session, group) # Team 
+    
+    def addToGroups(self, mumble_server, session, game, server, team):
+        sid = mumble_server.id()
+        prefix = self.cfg().source.groupprefix
+        game_cid = self.db.cidFor(sid, game)
+        
+        group = prefix + game
+        mumble_server.addUserToGroup(game_cid, session, group) # Game
+        
+        group += "_" + server
+        mumble_server.addUserToGroup(game_cid, session, group) # Server
+        
+        group += "_" + str(team)
+        mumble_server.addUserToGroup(game_cid, session, group) # Team 
+    
     def userTransition(self, mumble_server, old, new):
         sid = mumble_server.id()
 
@@ -133,33 +161,39 @@ class source(MumoModule):
         
         relevant = old or (new and new.valid()) 
         if not relevant:
+            # User that is not playing. We don't care about those.
             return
         
         user_new = not old and new
         user_gone = old and (not new or not new.valid())
         
-        if not user_new:
-            # Nuke previous group memberships if any
-            
-            #TODO: Remove group memberships
-            
-            pass
-        
         if not user_gone:
-            #TODO: Establish new group memberships
+            assert(new)
+            
+            if user_new:
+                self.dlog(sid, new.state, "User started playing: g/s/t %s/%s/%d", new.game, new.server, new.team)
+                self.addToGroups(mumble_server, new.session, new.game, new.server, new.team)
+            else:
+                assert(old);
+                self.dlog(sid, old.state, "User switched: g/s/t %s/%s/%d", new.game, new.server, new.team)
+                self.removeFromGroups(mumble_server, old.session, old.game, old.server, old.team)
+                self.addToGroups(mumble_server, new.session, new.game, new.server, new.team)
+            
             moved = self.moveUser(mumble_server, new)
         else:
             # User gone
             assert(old)
+            
             self.users.remove(sid, old.state.session)
+            self.removeFromGroups(mumble_server, old.session, old.game, old.server, old.team)
             moved = True
             
-            if not new:
-                self.dlog(sid, old.state, "User gone")
+            if new:
+                bcid = self.cfg().source.basechannelid
+                self.dlog(sid, old.state, "User stopped playing. Moving to %d.", bcid)
+                self.moveUserToCid(mumble_server, new.state, )
             else:
-                # Move user out of our channel structure
-                self.moveUserToCid(mumble_server, new.state, self.cfg().source.basechannelid)
-                self.dlog(sid, old.state, "User stopped playing")
+                self.dlog(sid, old.state, "User gone")
         
         
         if moved and old:
