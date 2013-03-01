@@ -218,6 +218,79 @@ class source(MumoModule):
         except IndexError:
             return str(index)
     
+    def setACLsForGameChannel(self, mumble_server, game_cid, game):
+        # Shorthands
+        ACL = self.murmur.ACL
+        EAT = self.murmur.PermissionEnter | self.murmur.PermissionTraverse # Enter And Traverse
+        W = self.murmur.PermissionWhisper # Whisper
+        S = self.murmur.PermissionSpeak # Speak
+        
+        groupname = '~' + self.cfg().source.groupprefix + game
+        
+        mumble_server.setACL(game_cid,
+                          [ACL(applyHere = True, # Deny everything
+                               applySubs = True,
+                               userid = -1,
+                               group = 'all',
+                               deny = EAT | W | S),
+                           ACL(applyHere = True, # Allow speak to players
+                               applySubs = True,
+                               userid = -1,
+                               group = groupname,
+                               allow = S),
+                           ACL(applyHere = True, # Allow enter and traverse to players
+                               applySubs = False,
+                               userid = -1,
+                               group = groupname,
+                               allow = EAT | W)],
+                           [], True)
+    
+
+    def setACLsForServerChannel(self, mumble_server, server_cid, game, server):
+        # Shorthands
+        ACL = self.murmur.ACL
+        EAT = self.murmur.PermissionEnter | self.murmur.PermissionTraverse # Enter And Traverse
+        W = self.murmur.PermissionWhisper # Whisper
+        S = self.murmur.PermissionSpeak # Speak
+        
+        groupname = '~' + self.cfg().source.groupprefix + game + "_" + server
+        
+        mumble_server.setACL(server_cid,
+                          [ACL(applyHere = True, # Deny everything
+                               applySubs = True,
+                               userid = -1,
+                               group = 'all',
+                               deny = EAT | W | S),
+                           ACL(applyHere = True, # Allow speak to players
+                               applySubs = True,
+                               userid = -1,
+                               group = groupname,
+                               allow = S),
+                           ACL(applyHere = True, # Allow enter and traverse to players
+                               applySubs = False,
+                               userid = -1,
+                               group = groupname,
+                               allow = EAT | W)],
+                           [], True)
+        
+
+    def setACLsForTeamChannel(self, mumble_server, team_cid, game, server, team):
+        # Shorthands
+        ACL = self.murmur.ACL
+        EAT = self.murmur.PermissionEnter | self.murmur.PermissionTraverse # Enter And Traverse
+        W = self.murmur.PermissionWhisper # Whisper
+        S = self.murmur.PermissionSpeak # Speak
+        
+        groupname = '~' + self.cfg().source.groupprefix + game + "_" + server + "_" + str(team)
+        
+        mumble_server.setACL(team_cid,
+                          [ACL(applyHere = True, # Allow enter and traverse to players
+                               applySubs = False,
+                               userid = -1,
+                               group = groupname,
+                               allow = EAT | W | S)],
+                           [], True)
+
     def getOrCreateGameChannelFor(self, mumble_server, game, server, sid, cfg, log, namevars):
         game_cid = self.db.cidFor(sid, game)
         if game_cid == None:
@@ -226,6 +299,11 @@ class source(MumoModule):
             game_cid = mumble_server.addChannel(game_channel_name, cfg.source.basechannelid)
             self.db.registerChannel(sid, game_cid, game) # Make sure we don't have orphaned server channels around
             self.db.unregisterChannel(sid, game, server)
+            
+            if cfg.source.restrict:
+                log.debug("(%d) Setting ACL's for new game channel (cid %d)", game_cid)
+                self.setACLsForGameChannel(mumble_server, game_cid, game)
+            
             log.debug("(%d) Game channel created and registered (cid %d)", sid, game_cid)
         return game_cid
 
@@ -238,6 +316,11 @@ class source(MumoModule):
             server_cid = mumble_server.addChannel(server_channel_name, game_cid)
             self.db.registerChannel(sid, server_cid, game, server)
             self.db.unregisterChannel(sid, game, server, team) # Make sure we don't have orphaned team channels around
+            
+            if self.cfg().source.restrict:
+                log.debug("(%d) Setting ACL's for new server channel (cid %d)", server_cid)
+                self.setACLsForServerChannel(mumble_server, server_cid, game, server)
+            
             log.debug("(%d) Server channel created and registered (cid %d)", sid, server_cid)
         return server_cid
 
@@ -249,6 +332,11 @@ class source(MumoModule):
             log.debug("(%d) Creating team channel '%s' below %d", sid, team_channel_name, server_cid)
             team_cid = mumble_server.addChannel(team_channel_name, server_cid)
             self.db.registerChannel(sid, team_cid, game, server, team)
+            
+            if self.cfg().source.restrict:
+                log.debug("(%d) Setting ACL's for new team channel (cid %d)", team_cid)
+                self.setACLsForTeamChannel(mumble_server, team_cid, game, server, team)
+            
             log.debug("(%d) Team channel created and registered (cid %d)", sid, team_cid)
         return team_cid
 
@@ -256,9 +344,6 @@ class source(MumoModule):
         sid = mumble_server.id()
         cfg = self.cfg()
         log = self.log()
-        
-        #TODO: Apply ACLs if needed
-        #TODO: Make robust against channel changes not in the db
         
         namevars = {'game' : game,
                     'server' : server}
