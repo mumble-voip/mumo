@@ -46,6 +46,11 @@ from users import (User, UserRegistry)
 import re
     
 class source(MumoModule):
+    """
+    This class combines the basic mumble moderator callbacks with
+    server level callbacks for handling source game positional audio
+    context and identity information.
+    """
     default_game_config = (
                              ('name', str, "%(game)s"),
                              ('servername', str, "%(server)s"),
@@ -85,6 +90,10 @@ class source(MumoModule):
         self.db.close()
         
     def connected(self):
+        """
+        Makes sure the the plugin is correctly configured once the connection
+        to the mumble server is (re-)established.
+        """
         cfg = self.cfg()
         manager = self.manager()
         log = self.log()
@@ -105,6 +114,10 @@ class source(MumoModule):
         
     
     def validateChannelDB(self):
+        """
+        Makes sure the plugins internal datatbase
+        matches the actual state of the servers.
+        """
         log = self.log()
         log.debug("Validating channel database")
                 
@@ -127,6 +140,9 @@ class source(MumoModule):
     def disconnected(self): pass
     
     def removeFromGroups(self, mumble_server, session, game, server, team):
+        """
+        Removes the client from all relevant groups
+        """
         sid = mumble_server.id()
         prefix = self.cfg().source.groupprefix
         game_cid = self.db.cidFor(sid, game)
@@ -141,9 +157,13 @@ class source(MumoModule):
         mumble_server.removeUserFromGroup(game_cid, session, group) # Team 
     
     def addToGroups(self, mumble_server, session, game, server, team):
+        """
+        Adds the client to all relevant groups
+        """
         sid = mumble_server.id()
         prefix = self.cfg().source.groupprefix
         game_cid = self.db.cidFor(sid, game)
+        assert(game_cid != None)
         
         group = prefix + game
         mumble_server.addUserToGroup(game_cid, session, group) # Game
@@ -154,71 +174,116 @@ class source(MumoModule):
         group += "_" + str(team)
         mumble_server.addUserToGroup(game_cid, session, group) # Team 
     
+
+    def transitionPresentUser(self, mumble_server, old, new, sid, user_new):
+        """
+        Transitions a user that has been and is currently playing
+        """
+        assert(new)
+        
+        target_cid = self.getOrCreateTargetChannelFor(mumble_server, new)
+        
+        if user_new:
+            self.dlog(sid, new.state, "User started playing: g/s/t %s/%s/%d", new.game, new.server, new.identity["team"])
+            self.addToGroups(mumble_server, new.state.session, new.game, new.server, new.identity["team"])
+        else:
+            assert old
+            self.dlog(sid, old.state, "User switched: g/s/t %s/%s/%d", new.game, new.server, new.identity["team"])
+            self.removeFromGroups(mumble_server, old.state.session, old.game, old.server, old.identity["team"])
+            self.addToGroups(mumble_server, new.state.session, new.game, new.server, new.identity["team"])
+        
+        return self.moveUser(mumble_server, new, target_cid)
+
+
+    def transitionGoneUser(self, mumble_server, old, new, sid):
+        """
+        Transitions a user that played but is no longer doing so now.
+        """
+        assert(old)
+        
+        self.users.remove(sid, old.state.session)
+        self.removeFromGroups(mumble_server, old.state.session, old.game, old.server, old.identity["team"])
+        
+        if new:
+            bcid = self.cfg().source.basechannelid
+            self.dlog(sid, old.state, "User stopped playing. Moving to %d.", bcid)
+            self.moveUserToCid(mumble_server, new.state, bcid)
+        else:
+            self.dlog(sid, old.state, "User gone")
+        return True
+
+
+    def userLeftChannel(self, mumble_server, old, sid):
+        """
+        User left channel. Make sure we check for vacancy it if the game it
+        belongs to is configured that way.
+        """
+        chan = self.db.channelFor(sid, old.game, old.server, old.identity['team'])
+        if chan:
+            _, cid, game, _, _ = chan
+            if self.getGameConfig(game, "deleteifunused"):
+                self.deleteIfUnused(mumble_server, cid)
+
     def userTransition(self, mumble_server, old, new):
+        """
+        Handles the transition of the user between given old and new states.
+        
+        If no old state is available (connect, starting to play, ...) old can be
+        None. If an old state is given it is assumed that it is valid.
+        
+        If no new state is available (disconnect) new can be None. A new state
+        can be either valid (playing) or invalid (not or no longer playing).
+        
+        Depending on the previous and the new state this function performs all
+        needed actions.
+        """
         sid = mumble_server.id()
 
         assert(not old or old.valid())
         
         relevant = old or (new and new.valid()) 
         if not relevant:
-            # User that is not playing. We don't care about those.
             return
         
-        user_new = not old and new
+        user_new = not old and new and new.valid()
         user_gone = old and (not new or not new.valid())
         
         if not user_gone:
-            assert(new)
+            moved = self.transitionPresentUser(mumble_server, old, new, sid, user_new)
             
-            if user_new:
-                self.dlog(sid, new.state, "User started playing: g/s/t %s/%s/%d", new.game, new.server, new.team)
-                self.addToGroups(mumble_server, new.session, new.game, new.server, new.team)
-            else:
-                assert(old);
-                self.dlog(sid, old.state, "User switched: g/s/t %s/%s/%d", new.game, new.server, new.team)
-                self.removeFromGroups(mumble_server, old.session, old.game, old.server, old.team)
-                self.addToGroups(mumble_server, new.session, new.game, new.server, new.team)
-            
-            moved = self.moveUser(mumble_server, new)
         else:
-            # User gone
-            assert(old)
-            
-            self.users.remove(sid, old.state.session)
-            self.removeFromGroups(mumble_server, old.session, old.game, old.server, old.team)
-            moved = True
-            
-            if new:
-                bcid = self.cfg().source.basechannelid
-                self.dlog(sid, old.state, "User stopped playing. Moving to %d.", bcid)
-                self.moveUserToCid(mumble_server, new.state, )
-            else:
-                self.dlog(sid, old.state, "User gone")
+            moved = self.transitionGoneUser(mumble_server, old, new, sid)
         
         
         if moved and old:
-            # If moved from a valid game state perform channel use check
-            chan = self.db.channelFor(sid, old.game, old.server, old.identity['team'])
-            if chan:
-                _, cid, game, _, _ = chan
-                if self.gameCfg(game, "deleteifunused"):
-                    self.deleteIfUnused(mumble_server, cid)
-        
-    
-    
+            self.userLeftChannel(mumble_server, old, sid)
+                    
     def getGameName(self, game):
-        return self.gameCfg(game, "name")
+        """
+        Returns the unexpanded game specific game name template.
+        """
+        return self.getGameConfig(game, "name")
     
     def getServerName(self, game):
-        return self.gameCfg(game, "servername")
+        """
+        Returns the unexpanded game specific server name template.
+        """
+        return self.getGameConfig(game, "servername")
         
     def getTeamName(self, game, index):
+        """
+        Returns the game specific team name for the given team index.
+        If the index is invalid the stringified index is returned.
+        """
         try:
-            return self.gameCfg(game, "teams")[index]
+            return self.getGameConfig(game, "teams")[index]
         except IndexError:
             return str(index)
     
     def setACLsForGameChannel(self, mumble_server, game_cid, game):
+        """
+        Sets the appropriate ACLs for a game channel for the given cid.
+        """
         # Shorthands
         ACL = self.murmur.ACL
         EAT = self.murmur.PermissionEnter | self.murmur.PermissionTraverse # Enter And Traverse
@@ -233,20 +298,18 @@ class source(MumoModule):
                                userid = -1,
                                group = 'all',
                                deny = EAT | W | S),
-                           ACL(applyHere = True, # Allow speak to players
-                               applySubs = True,
-                               userid = -1,
-                               group = groupname,
-                               allow = S),
                            ACL(applyHere = True, # Allow enter and traverse to players
                                applySubs = False,
                                userid = -1,
                                group = groupname,
-                               allow = EAT | W)],
+                               allow = EAT)],
                            [], True)
     
 
     def setACLsForServerChannel(self, mumble_server, server_cid, game, server):
+        """
+        Sets the appropriate ACLs for a server channel for the given cid.
+        """
         # Shorthands
         ACL = self.murmur.ACL
         EAT = self.murmur.PermissionEnter | self.murmur.PermissionTraverse # Enter And Traverse
@@ -256,25 +319,18 @@ class source(MumoModule):
         groupname = '~' + self.cfg().source.groupprefix + game + "_" + server
         
         mumble_server.setACL(server_cid,
-                          [ACL(applyHere = True, # Deny everything
-                               applySubs = True,
-                               userid = -1,
-                               group = 'all',
-                               deny = EAT | W | S),
-                           ACL(applyHere = True, # Allow speak to players
-                               applySubs = True,
-                               userid = -1,
-                               group = groupname,
-                               allow = S),
-                           ACL(applyHere = True, # Allow enter and traverse to players
+                          [ACL(applyHere = True, # Allow enter and traverse to players
                                applySubs = False,
                                userid = -1,
                                group = groupname,
-                               allow = EAT | W)],
+                               allow = EAT)],
                            [], True)
         
 
     def setACLsForTeamChannel(self, mumble_server, team_cid, game, server, team):
+        """
+        Sets the appropriate ACLs for a team channel for the given cid.
+        """
         # Shorthands
         ACL = self.murmur.ACL
         EAT = self.murmur.PermissionEnter | self.murmur.PermissionTraverse # Enter And Traverse
@@ -292,6 +348,11 @@ class source(MumoModule):
                            [], True)
 
     def getOrCreateGameChannelFor(self, mumble_server, game, server, sid, cfg, log, namevars):
+        """
+        Helper function for getting or creating only the game channel. Returns
+        the cid of the exisitng or created game channel.
+        """
+        sid = mumble_server.id()
         game_cid = self.db.cidFor(sid, game)
         if game_cid == None:
             game_channel_name = self.getGameName(game) % namevars
@@ -300,8 +361,8 @@ class source(MumoModule):
             self.db.registerChannel(sid, game_cid, game) # Make sure we don't have orphaned server channels around
             self.db.unregisterChannel(sid, game, server)
             
-            if cfg.source.restrict:
-                log.debug("(%d) Setting ACL's for new game channel (cid %d)", game_cid)
+            if self.getGameConfig(game, "restrict"):
+                log.debug("(%d) Setting ACL's for new game channel (cid %d)", sid, game_cid)
                 self.setACLsForGameChannel(mumble_server, game_cid, game)
             
             log.debug("(%d) Game channel created and registered (cid %d)", sid, game_cid)
@@ -309,6 +370,11 @@ class source(MumoModule):
 
 
     def getOrCreateServerChannelFor(self, mumble_server, game, server, team, sid, log, namevars, game_cid):
+        """
+        Helper function for getting or creating only the server channel. The game
+        channel must already exist. Returns the cid of the existing or created
+        server channel.
+        """
         server_cid = self.db.cidFor(sid, game, server)
         if server_cid == None:
             server_channel_name = self.getServerName(game) % namevars
@@ -317,8 +383,8 @@ class source(MumoModule):
             self.db.registerChannel(sid, server_cid, game, server)
             self.db.unregisterChannel(sid, game, server, team) # Make sure we don't have orphaned team channels around
             
-            if self.cfg().source.restrict:
-                log.debug("(%d) Setting ACL's for new server channel (cid %d)", server_cid)
+            if self.getGameConfig(game, "restrict"):
+                log.debug("(%d) Setting ACL's for new server channel (cid %d)", sid, server_cid)
                 self.setACLsForServerChannel(mumble_server, server_cid, game, server)
             
             log.debug("(%d) Server channel created and registered (cid %d)", sid, server_cid)
@@ -326,6 +392,12 @@ class source(MumoModule):
 
 
     def getOrCreateTeamChannelFor(self, mumble_server, game, server, team, sid, log, server_cid):
+        """
+        Helper function for getting or creating only the team channel. Game and
+        server channel must already exist. Returns the cid of the existing or
+        created team channel.
+        """
+        
         team_cid = self.db.cidFor(sid, game, server, team)
         if team_cid == None:
             team_channel_name = self.getTeamName(game, team)
@@ -333,14 +405,19 @@ class source(MumoModule):
             team_cid = mumble_server.addChannel(team_channel_name, server_cid)
             self.db.registerChannel(sid, team_cid, game, server, team)
             
-            if self.cfg().source.restrict:
-                log.debug("(%d) Setting ACL's for new team channel (cid %d)", team_cid)
+            if self.getGameConfig(game, "restrict"):
+                log.debug("(%d) Setting ACL's for new team channel (cid %d)", sid, team_cid)
                 self.setACLsForTeamChannel(mumble_server, team_cid, game, server, team)
             
             log.debug("(%d) Team channel created and registered (cid %d)", sid, team_cid)
         return team_cid
 
     def getOrCreateChannelFor(self, mumble_server, game, server, team):
+        """
+        Checks whether a requested team channel already exists. If not
+        all missing parts of the channel structure are created. Returns
+        the cid of the existing or created team channel.
+        """
         sid = mumble_server.id()
         cfg = self.cfg()
         log = self.log()
@@ -355,11 +432,32 @@ class source(MumoModule):
         return team_cid
     
     def moveUserToCid(self, server, state, cid):
+        """
+        Low level helper for moving a user to a channel known by its ID
+        """
         self.dlog(server.id(), state, "Moving from channel %d to %d", state.channel, cid)
         state.channel = cid
         server.setState(state)
         
-    def moveUser(self, mumble_server, user):
+    def getOrCreateTargetChannelFor(self, mumble_server, user):
+        """
+        Returns the cid of the target channel for this user. If needed
+        missing channels will be created.
+        """
+        return self.getOrCreateChannelFor(mumble_server,
+                                          user.game,
+                                          user.server,
+                                          user.identity["team"])
+        
+    def moveUser(self, mumble_server, user, target_cid = None):
+        """
+        Move user according to current game state.
+        
+        This function performs all tasks of the move including creating
+        channels if needed or deleting unused ones when appropriate.
+        If a target_cid is given it is assumed that the channel
+        structure is already present.
+        """
         state = user.state
         game = user.game
         server = user.server
@@ -367,7 +465,9 @@ class source(MumoModule):
         sid = mumble_server.id()
         
         source_cid = state.channel
-        target_cid = self.getOrCreateChannelFor(mumble_server, game, server, team)
+        
+        if target_cid == None:
+            target_cid = self.getOrCreateChannelFor(mumble_server, game, server, team)
         
         if source_cid != target_cid:
             self.moveUserToCid(mumble_server, state, target_cid)
@@ -420,11 +520,11 @@ class source(MumoModule):
         mumble_server.removeChannel(server_channel_cid)
         return True
 
-    def validGameType(self, game):
+    def isValidGameType(self, game):
         return self.cfg().source.gameregex.match(game) != None
     
-    def validServer(self, game, server):
-        return self.gameCfg(game, "serverregex").match(server) != None
+    def isValidServer(self, game, server):
+        return self.getGameConfig(game, "serverregex").match(server) != None
     
     def parseSourceContext(self, context):
         """
@@ -440,7 +540,7 @@ class source(MumoModule):
                 # Not a source engine context
                 return (None, None)
             
-            if not self.validGameType(game) or not self.validServer(game, server):
+            if not self.isValidGameType(game) or not self.isValidServer(game, server):
                 return (None, None)
             
             return (game, server)
@@ -466,8 +566,11 @@ class source(MumoModule):
         except (AttributeError, ValueError):
             return None
            
-    def gameCfg(self, game, variable):
-        """Return the game specific value for the given variable if it exists. Otherwise the generic value"""
+    def getGameConfig(self, game, variable):
+        """
+        Return the game specific value for the given variable if it exists. Otherwise the generic value
+        """
+        
         sectionname = "game:" + game
         cfg = self.cfg()
 
@@ -481,6 +584,11 @@ class source(MumoModule):
         self.log().debug("(%d) (%d|%d) " + what, sid, state.session, state.userid, *argc)
         
     def handle(self, server, new_state):
+        """
+        Takes the updated state of the user and collects all
+        other required data to perform a state transition for
+        this user.
+        """
         sid = server.id()
         session = new_state.session
         
@@ -510,18 +618,34 @@ class source(MumoModule):
     #
     
     def userDisconnected(self, server, state, context=None):
+        """
+        Handle disconnect to be able to delete unused channels
+        and remove user from internal accounting.
+        """
         sid = server.id()
         session = state.session
         
         self.userTransition(server, self.users.get(sid, session), None)
          
     def userStateChanged(self, server, state, context=None):
+        """
+        Default state change for user. Could be something uninteresting for
+        the plugin like mute/unmute but or something relevant like the context
+        string change triggered by starting to play.
+        """
         self.handle(server, state)
         
     def userConnected(self, server, state, context=None):
+        """
+        First time we see the state for a user. userStateChanged behavior
+        applies.
+        """
         self.handle(server, state)
         
     def channelRemoved(self, server, state, context=None):
+        """
+        Updates internal accounting for channels controlled by the plugin.
+        """
         cid = state.id
         sid = server.id()
         

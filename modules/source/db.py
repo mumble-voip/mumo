@@ -35,22 +35,40 @@ import sqlite3
 
 class SourceDB(object):
     def __init__(self, path = ":memory:"):
+        """
+        Initialize the sqlite database in the given path. If no path
+        is given the database is created in memory.
+        """
         self.db = sqlite3.connect(path)
         if self.db:
             self.db.execute("CREATE TABLE IF NOT EXISTS source(sid INTEGER, cid INTEGER, game TEXT, server TEXT, team INTEGER)")
+            self.db.execute("VACUUM")
             self.db.commit()
 
     def close(self):
+        """
+        Closes the database connection
+        """
         if self.db:
             self.db.commit()
             self.db.close()
             self.db = None
         
     def isOk(self):
-        """ True if the database is correctly initialized """
+        """
+        True if the database is correctly initialized
+        """
         return self.db != None
         
     def cidFor(self, sid, game, server = None, team = None):
+        """
+        Returns the channel id for game specific channel. If only game
+        is passed the game root channel cid is returned. If additionally
+        server (and team) are passed the server (/team) channel cid is returned.
+        
+        If no channel matching the arguments has been registered with the database
+        before None is returned.
+        """
         assert(sid != None and game != None)
         assert(not (team != None and server == None))
         
@@ -58,11 +76,18 @@ class SourceDB(object):
         return v[0] if v else None
 
     def channelForCid(self, sid, cid):
+        """
+        Returns a tuple of (sid, cid, game, server, team) for the given cid.
+        Returns None if the cid is unknown.
+        """
         assert(sid != None and cid != None)
         return self.db.execute("SELECT sid, cid, game, server, team FROM source WHERE sid is ? and cid is ?", [sid, cid]).fetchone()
         
     def channelFor(self, sid, game, server = None, team = None):
-        """ Returns matching channel as (sid, cid, game, server team) tuple """
+        """
+        Returns matching channel as (sid, cid, game, server, team) tuple. Matching
+        behavior is the same as for cidFor()
+        """
         assert(sid != None and game != None)
         assert(not (team != None and server == None))
         
@@ -70,6 +95,12 @@ class SourceDB(object):
         return v
     
     def channelsFor(self, sid, game, server = None, team = None):
+        """
+        Returns matching channels as a list of (sid, cid, game, server, team) tuples.
+        If only the game is passed all server and team channels are matched.
+        This can be limited by passing server (and team).
+        Returns empty list if no matches are found.
+        """
         assert(sid != None and game != None)
         assert(not (team != None and server == None))
         
@@ -77,6 +108,9 @@ class SourceDB(object):
         return self.db.execute("SELECT sid, cid, game, server, team FROM source WHERE sid is ? and game is ?" + suffix, [sid, game] + params).fetchall()
     
     def registerChannel(self, sid, cid, game, server = None, team = None):
+        """
+        Register a given channel with the database.
+        """
         assert(sid != None and game != None)
         assert(not (team != None and server == None))
         
@@ -100,6 +134,9 @@ class SourceDB(object):
             return ("", [])
         
     def unregisterChannel(self, sid, game, server = None, team = None):
+        """
+        Unregister a channel previously registered with the database.
+        """
         assert(sid != None and game != None)
         assert(not (team != None and server == None))
         
@@ -108,21 +145,29 @@ class SourceDB(object):
         self.db.commit()
         
     def dropChannel(self, sid, cid):
-        """ Drops channel with given sid + cid """
+        """
+        Drops channel with given sid + cid
+        """
         self.db.execute("DELETE FROM source WHERE sid is ? and cid is ?", [sid, cid])
         self.db.commit()
     
     def isRegisteredChannel(self, sid, cid):
-        """ Returns true if a channel with given sid and cid is registered """
+        """
+        Returns true if a channel with given sid and cid is registered
+        """
         res = self.db.execute("SELECT cid FROM source WHERE sid is ? and cid is ?", [sid, cid]).fetchone()
         return res != None
         
     def registeredChannels(self):
-        """ Returns channels as a list of (sid, cid, game, server team) tuples grouped by sid """
+        """
+        Returns channels as a list of (sid, cid, game, server team) tuples grouped by sid
+        """
         return self.db.execute("SELECT sid, cid, game, server, team FROM source ORDER by sid").fetchall()
     
     def reset(self):
-        """ Deletes everything in the database """
+        """
+        Deletes everything in the database
+        """
         self.db.execute("DELETE FROM source")
         self.db.commit()
     

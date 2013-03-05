@@ -48,47 +48,100 @@ class StateMock():
 class ServerMock():
     def __init__(self, sid):
         self.sid = sid
-        self.reset()
+        self._reset()
     
     def id(self):
         return self.sid
     
-    def lastChannelID(self):
+    def _lastChannelID(self):
         return self.uid
         
     def addChannel(self, name, parent):
-        self.name.append(name)
-        self.parent.append(parent)
-        
         self.uid += 1
+        assert(not self.uid in self.channels)
+        self.channels[self.uid] = {'name' : name,
+                                   'parent' : parent,
+                                   'groups' : {},
+                                   'acls' : [] }
         return self.uid
-
+    
+    def addUserToGroup(self, cid, session, group):
+        c = self._getChan(cid)
+        
+        if session in c['groups']:
+            c['groups'][session].add(group)
+        else:
+            c['groups'][session] = set([group])
+    
+    def _getChan(self, cid):
+        if not cid in self.channels:
+            raise InvalidChannelExceptionMock()
+        
+        return self.channels[cid]
         
     def getChannelState(self, cid):
-        if not cid in self.channel:
-            raise InvalidChannelExceptionMock()
-        return {'fake':True}
+        self._getChan(cid)
+        
+        return {'fake': True}
     
     def setState(self, state):
         self.user_state.append(state)
         
-    def reset(self):
+    def setACL(self, cid, acls, groups, inherit):
+        c = self._getChan(cid)
+        c['acls'] = acls
+    
+    def _reset(self):
         self.uid = 1000
-        self.name = []
-        self.parent = []
+        self.channels = {} # See addChannel
         self.user_state = []
+
+class ACLMock(object):
+    def __init__(self, applyHere, applySubs, userid, group, deny = 0, allow = 0):
+        self.applyHere = applyHere
+        self.applySubs = applySubs
+        self.userid = userid
+        self.group = group
+        self.deny = deny
+        self.allow = allow
         
-class MurmurMock():
+
+class MurmurMock(object):
     InvalidChannelException = InvalidChannelExceptionMock
+    ACL = ACLMock
+    PermissionEnter = 1
+    PermissionTraverse = 2
+    PermissionWhisper = 4
+    PermissionSpeak = 8
+    
+    def _reset(self): pass
+    
+    def __init__(self):
+        pass
+
+
+class MockACLHelper(object):
+    E = MurmurMock.PermissionEnter
+    T = MurmurMock.PermissionTraverse
+    W = MurmurMock.PermissionWhisper
+    S = MurmurMock.PermissionSpeak
+    
+    EAT = E | T
+    ALL = E|T|W|S
+
+ACLS = MockACLHelper
+
+
+class MetaMock():
     def __init__(self):
         self.s = ServerMock(1)
         
     def getServer(self, sid):
         assert(sid == self.s.id())
         return self.s
-    
-    def reset(self):
-        self.s.reset()
+
+    def _reset(self):
+        self.s._reset()
 
 class ManagerMock():
     SERVERS_ALL = [-1]
@@ -96,12 +149,16 @@ class ManagerMock():
     def __init__(self):
         self.q = Queue.Queue()
         self.m = MurmurMock()
+        self.meta = MetaMock()
         
     def getQueue(self):
         return self.q
     
     def getMurmurModule(self):
         return self.m
+    
+    def getMeta(self):
+        return self.meta
     
     def subscribeServerCallbacks(self, callback, servers):
         self.serverCB = {'callback' : callback, 'servers' : servers}
@@ -113,7 +170,7 @@ class Test(unittest.TestCase):
 
     def setUp(self):
         self.mm = ManagerMock();
-        self.mserv = self.mm.m.getServer(1)
+        self.mserv = self.mm.meta.getServer(1)
         
         
         testconfig = config.Config(None, source.source.default_config)
@@ -145,7 +202,8 @@ class Test(unittest.TestCase):
         
     def resetState(self):
         self.resetDB()
-        self.mm.m.reset()
+        self.mm.m._reset()
+        self.mm.meta._reset()
         
     def tearDown(self):
         self.s.disconnected()
@@ -169,8 +227,8 @@ class Test(unittest.TestCase):
         self.assertEqual(self.s.cfg().source.basechannelid, 0)
         self.assertEqual(self.s.cfg().generic.name, "%(game)s")
 
-        self.assertEqual(self.s.gameCfg("wugu", "name"), "%(game)s")
-        self.assertEqual(self.s.gameCfg("tf", "name"), "Team Fortress 2")
+        self.assertEqual(self.s.getGameConfig("wugu", "name"), "%(game)s")
+        self.assertEqual(self.s.getGameConfig("tf", "name"), "Team Fortress 2")
 
     def testIdentityParser(self):
         self.resetState()
@@ -225,22 +283,34 @@ class Test(unittest.TestCase):
         actual = self.s.parseSourceContext("Source engine: tf\x00[A-1:2807761920(3281)]\x00")
         self.assertEqual(none, actual)
         
+    def checkACLThings(self, acls, things):
+        self.assertEqual(len(things), len(acls))
+        
+        i = 0
+        for thing in things:
+            acl = acls[i]
+            for attr, val in thing.iteritems():
+                self.assertEqual(getattr(acl, attr), val)
+            i += 1
+    
     def testGetOrCreateChannelFor(self):
         mumble_server = self.mserv
         
-        prev = mumble_server.lastChannelID()
+        prev = mumble_server._lastChannelID()
         game = "tf"; server = "[A-1:123]"; team = 3 
         cid = self.s.getOrCreateChannelFor(mumble_server, game, server, team)
         
         self.assertEqual(3, cid - prev)
         
-        self.assertEqual(mumble_server.parent[0], 0)
-        self.assertEqual(mumble_server.parent[1], prev + 1)
-        self.assertEqual(mumble_server.parent[2], prev + 2)
+        c = mumble_server.channels
         
-        self.assertEqual(mumble_server.name[0], "Team Fortress 2")
-        self.assertEqual(mumble_server.name[1], "Test tf [A-1:123]")
-        self.assertEqual(mumble_server.name[2], "Red")
+        self.assertEqual(c[prev + 1]["parent"], 0)
+        self.assertEqual(c[prev + 2]["parent"], prev + 1)
+        self.assertEqual(c[prev + 3]["parent"], prev + 2)
+        
+        self.assertEqual(c[prev + 1]["name"], "Team Fortress 2")
+        self.assertEqual(c[prev + 2]["name"], "Test tf [A-1:123]")
+        self.assertEqual(c[prev + 3]["name"], "Red")
         
         sid = mumble_server.id()
         
@@ -250,6 +320,13 @@ class Test(unittest.TestCase):
         
         gotcid = self.s.getOrCreateChannelFor(mumble_server, game, server, team)
         self.assertEqual(cid, gotcid)
+        
+        c = mumble_server.channels
+        
+        self.checkACLThings(c[prev + 3]['acls'], [{'group' : '~source_tf_[A-1:123]_3'}])
+        self.checkACLThings(c[prev + 2]['acls'], [{'group' : '~source_tf_[A-1:123]'}])
+        self.checkACLThings(c[prev + 1]['acls'], [{},
+                                                  {'group' : '~source_tf'}])
         
         #print self.s.db.db.execute("SELECT * FROM source").fetchall()
     
@@ -277,34 +354,34 @@ class Test(unittest.TestCase):
     def testValidGameType(self):
         self.resetState()
         
-        self.assertTrue(self.s.validGameType("dod"))
-        self.assertTrue(self.s.validGameType("cstrike"))
-        self.assertTrue(self.s.validGameType("tf"))
+        self.assertTrue(self.s.isValidGameType("dod"))
+        self.assertTrue(self.s.isValidGameType("cstrike"))
+        self.assertTrue(self.s.isValidGameType("tf"))
         
-        self.assertFalse(self.s.validGameType("dodx"))
-        self.assertFalse(self.s.validGameType("xdod"))
-        self.assertFalse(self.s.validGameType(""))
+        self.assertFalse(self.s.isValidGameType("dodx"))
+        self.assertFalse(self.s.isValidGameType("xdod"))
+        self.assertFalse(self.s.isValidGameType(""))
     
     def testValidServer(self):
         self.resetState()
         
-        self.assertTrue(self.s.validServer("dod", "[A-1:2807761920(3281)]"))
+        self.assertTrue(self.s.isValidServer("dod", "[A-1:2807761920(3281)]"))
         
-        self.assertFalse(self.s.validServer("dod", "A-1:2807761920(3281)]"))
-        self.assertFalse(self.s.validServer("dod", "[A-1:2807761920(3281)"))
-        self.assertFalse(self.s.validServer("dod", "[A-1:2807761920(3281)&]"))
+        self.assertFalse(self.s.isValidServer("dod", "A-1:2807761920(3281)]"))
+        self.assertFalse(self.s.isValidServer("dod", "[A-1:2807761920(3281)"))
+        self.assertFalse(self.s.isValidServer("dod", "[A-1:2807761920(3281)&]"))
         
-        self.assertTrue(self.s.validServer("tf", "[A-1:123]"))
+        self.assertTrue(self.s.isValidServer("tf", "[A-1:123]"))
         
-        self.assertFalse(self.s.validServer("tf", "x[A-1:123]"))
-        self.assertFalse(self.s.validServer("tf", "[A-1:123]x"))
+        self.assertFalse(self.s.isValidServer("tf", "x[A-1:123]"))
+        self.assertFalse(self.s.isValidServer("tf", "[A-1:123]x"))
         
     def testMoveUser(self):
         self.resetState()
         
         mumble_server = self.mserv
         user_state = StateMock()
-        prev = self.mserv.lastChannelID()
+        prev = self.mserv._lastChannelID()
         
         TEAM_BLUE = 2
         TEAM_RED = 3
@@ -315,28 +392,103 @@ class Test(unittest.TestCase):
         TEAM_RED_SID = prev + 3
         TEAM_BLUE_SID = prev + 4
         
-        self.s.moveUser(self.mserv, user_state, "tf", "[A-1:123]", TEAM_BLUE)
+        user = source.User(user_state, {'team':TEAM_BLUE}, "tf", "[A-1:123]")
+        self.s.moveUser(self.mserv, user)
+        c = mumble_server.channels
+        self.assertEqual(c[prev + 1]["parent"], BASE_SID)
+        self.assertEqual(c[prev + 2]["parent"], GAME_SID)
+        self.assertEqual(c[prev + 3]["parent"], SERVER_SID)
         
-        self.assertEqual(mumble_server.parent[0], BASE_SID)
-        self.assertEqual(mumble_server.parent[1], GAME_SID)
-        self.assertEqual(mumble_server.parent[2], SERVER_SID)
-        
-        self.assertEqual(mumble_server.name[0], "Team Fortress 2")
-        self.assertEqual(mumble_server.name[1], "Test tf [A-1:123]")
-        self.assertEqual(mumble_server.name[2], "Blue")
-        self.assertEqual(len(mumble_server.name), 3)
+        self.assertEqual(c[prev + 1]["name"], "Team Fortress 2")
+        self.assertEqual(c[prev + 2]["name"], "Test tf [A-1:123]")
+        self.assertEqual(c[prev + 3]["name"], "Blue")
+        self.assertEqual(len(c), 3)
         
         self.assertEqual(user_state.channel, TEAM_RED_SID)
         self.assertEqual(mumble_server.user_state[0], user_state)
 
-        self.s.moveUser(self.mserv, user_state, "tf", "[A-1:123]", TEAM_RED)
+        user.identity['team'] = TEAM_RED
+        self.s.moveUser(self.mserv, user)
         
-        self.assertEqual(mumble_server.parent[3], SERVER_SID)
-        self.assertEqual(mumble_server.name[3], "Red")
-        self.assertEqual(len(mumble_server.parent), 4)
+        self.assertEqual(c[prev + 4]["parent"], SERVER_SID)
+        self.assertEqual(c[prev + 4]["name"], "Red")
+        self.assertEqual(len(c), 4)
         
         self.assertEqual(user_state.channel, TEAM_BLUE_SID)
         self.assertEqual(mumble_server.user_state[0], user_state)
+        
+    def testSetACLsForGameChannel(self):
+        self.resetState()
+        
+        mumble_server = self.mserv
+        cid = mumble_server.addChannel("test", 1); game = "dod"
+        
+        self.s.setACLsForGameChannel(mumble_server, cid, game)
+        acls = mumble_server.channels[cid]['acls']
+        
+        self.checkACLThings(acls, [{'applyHere' : True,
+                                    'applySubs' : True,
+                                    'userid' : -1,
+                                    'group' : 'all',
+                                    'deny' : ACLS.ALL,
+                                    'allow' : 0},
+                                   
+                                   {'applyHere' : True,
+                                    'applySubs' : False,
+                                    'userid' : -1,
+                                    'group' : '~source_dod',
+                                    'deny' : 0,
+                                    'allow' : ACLS.EAT}])
+        
+        
+    def testSetACLsForServerChannel(self):
+        self.resetState()
+
+        mumble_server = self.mserv
+        cid = mumble_server.addChannel("test", 1); game = "tf"; server = "[A-1:SomeServer]"
+        self.s.setACLsForServerChannel(mumble_server, cid, game, server)
+        acls = mumble_server.channels[cid]['acls']
+        
+        self.checkACLThings(acls, [{'applyHere' : True,
+                                    'applySubs' : False,
+                                    'userid' : -1,
+                                    'group' : '~source_tf_[A-1:SomeServer]',
+                                    'deny' : 0,
+                                    'allow' : ACLS.EAT}])
+        
+        
+    def testSetACLsForTeamChannel(self):
+        self.resetState()
+        
+        mumble_server = self.mserv
+        cid = mumble_server.addChannel("test", 1); game = "tf"; server = "[A-1:SomeServer]"; team = 2
+        
+        self.s.setACLsForTeamChannel(mumble_server, cid, game, server, team)
+        acls = mumble_server.channels[cid]['acls']
+        
+        self.checkACLThings(acls, [{'applyHere' : True,
+                                    'applySubs' : False,
+                                    'userid' : -1,
+                                    'group' : '~source_tf_[A-1:SomeServer]_2',
+                                    'deny' : 0,
+                                    'allow' : ACLS.ALL}])
+        
+    def testAddToGroups(self):
+        self.resetState()
+        
+        mumble_server = self.mserv
+        prev = mumble_server._lastChannelID()
+        
+        session = 10; game = 'cstrike'; server = '[A-1:12345]'; team = 1
+        self.s.getOrCreateChannelFor(mumble_server, game, server, team)
+        
+        # Test
+        self.s.addToGroups(mumble_server, session, game, server, team)
+        
+        groups = mumble_server.channels[prev + 1]['groups'][session]
+        self.assertIn("source_cstrike", groups)
+        self.assertIn("source_cstrike_[A-1:12345]", groups)
+        self.assertIn("source_cstrike_[A-1:12345]_1", groups)
         
         
 if __name__ == "__main__":

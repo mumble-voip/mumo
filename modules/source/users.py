@@ -41,20 +41,28 @@ class User(object):
         self.game = game
         
     def valid(self):
-        """ True if valid data is available for all fields """
+        """
+        True if valid data is available for all fields
+        """
         return self.state and self.identity and self.server and self.game
     
     def hasContextOrIdentityChanged(self, otherstate):
-        """ Checks whether the given state diverges from this users's """
+        """
+        Checks whether the given state diverges from this users's
+        """
         return self.state.context != otherstate.context or \
                self.state.identity != otherstate.identity 
                
     def updateState(self, state):
-        """ Updates the state of this user """
+        """
+        Updates the state of this user
+        """
         self.state = state
         
     def updateData(self, identity, game, server):
-        """ Updates the data fields for this user """
+        """
+        Updates the data fields for this user
+        """
         self.identity = identity
         self.game = game
         self.server = server
@@ -69,14 +77,18 @@ class UserRegistry(object):
         self.users = {} # {session:user, ...}
     
     def get(self, sid, session):
-        """ Return user or None from registry """
+        """
+        Return user or None from registry
+        """
         try:
             return self.users[sid][session]
         except KeyError:
             return None
         
     def add(self, sid, session, user):
-        """ Add new user to registry """
+        """
+        Add new user to registry
+        """
         assert(isinstance(user, User))
         
         if not sid in self.users:
@@ -88,7 +100,9 @@ class UserRegistry(object):
         return True
     
     def addOrUpdate(self, sid, session, user):
-        """ Add user or overwrite existing one """
+        """
+        Add user or overwrite existing one (identified by sid + session)
+        """
         assert(isinstance(user, User))
         
         if not sid in self.users:
@@ -99,7 +113,9 @@ class UserRegistry(object):
         return True
     
     def remove(self, sid, session):
-        """ Remove user from registry """
+        """
+        Remove user from registry
+        """
         try:
             del self.users[sid][session]
         except KeyError:
