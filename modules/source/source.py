@@ -57,7 +57,7 @@ class source(MumoModule):
                              ('teams', commaSeperatedStrings, ["Lobby", "Spectator", "Team one", "Team two", "Team three", "Team four"]),
                              ('restrict', x2bool, True),
                              ('serverregex', re.compile, re.compile("^\[[\w\d\-\(\):]{1,20}\]$")),
-                             ('deleteifunused', x2bool, True) 
+                             ('deleteifunused', x2bool, True)
                           )
     
     default_config = {'source':(

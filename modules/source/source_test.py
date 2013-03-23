@@ -202,7 +202,7 @@ class Test(unittest.TestCase):
         self.assertEqual(self.mm.serverCB['callback'], self.s)
     
     def resetDB(self):
-        self.s.db.db.execute("DELETE FROM source");
+        self.s.db.db.reset()
         
     def resetState(self):
         self.resetDB()

@@ -31,6 +31,7 @@
 
 import unittest
 from db import SourceDB
+import sqlite3
 
 class SourceDBTest(unittest.TestCase):
     def setUp(self):
@@ -133,8 +134,8 @@ class SourceDBTest(unittest.TestCase):
         self.db.registerChannel(sid, tcid, game, server, team)
 
         
-        expected = [(sid, bcid, game, None, None),
-                    (sid, scid, game, server, None),
+        expected = [(sid, bcid, game, self.db.NO_SERVER, self.db.NO_TEAM),
+                    (sid, scid, game, server, self.db.NO_TEAM),
                     (sid, tcid, game, server, team),
                     (sid+1, tcid, game, server, team)]
         
@@ -164,10 +165,10 @@ class SourceDBTest(unittest.TestCase):
         self.assertEqual(res, (sid, cid + 2, game, server, team))
         
         res = self.db.channelFor(sid, game, server)
-        self.assertEqual(res, (sid, cid + 1, game, server, None))
+        self.assertEqual(res, (sid, cid + 1, game, server, self.db.NO_TEAM))
         
         res = self.db.channelFor(sid, game)
-        self.assertEqual(res, (sid, cid, game, None, None))
+        self.assertEqual(res, (sid, cid, game, self.db.NO_SERVER, self.db.NO_TEAM))
         
         res = self.db.channelFor(sid, game, server, team+5)
         self.assertEqual(res, None)
@@ -180,11 +181,11 @@ class SourceDBTest(unittest.TestCase):
         self.db.registerChannel(sid, cid+2, game, server, team)
         
         res = self.db.channelForCid(sid, cid)
-        self.assertEqual(res, (sid, cid, game, None, None))
+        self.assertEqual(res, (sid, cid, game, self.db.NO_SERVER, self.db.NO_TEAM))
         
         
         res = self.db.channelForCid(sid, cid + 1)
-        self.assertEqual(res, (sid, cid + 1, game, server, None))
+        self.assertEqual(res, (sid, cid + 1, game, server, self.db.NO_TEAM))
         
         
         res = self.db.channelForCid(sid, cid + 2)
@@ -202,8 +203,8 @@ class SourceDBTest(unittest.TestCase):
         self.db.registerChannel(sid, cid+2, game, server, team)
         
         chans = ((sid, cid+2, game, server, team),
-                 (sid, cid+1, game, server, None),
-                 (sid, cid, game, None, None))
+                 (sid, cid+1, game, server, self.db.NO_TEAM),
+                 (sid, cid, game, self.db.NO_SERVER, self.db.NO_TEAM))
         
         res = self.db.channelsFor(sid, game, server, team)
         self.assertItemsEqual(res, chans[0:1])
@@ -216,6 +217,49 @@ class SourceDBTest(unittest.TestCase):
         
         res = self.db.channelsFor(sid+1, game)
         self.assertItemsEqual(res, [])
+    
+    def testChannelTableConstraints(self):
+        self.db.reset()
+        
+        # cid constraint
+        sid = 1; cid = 0; game = "tf"; server = "serv"; team = 0
+        self.db.registerChannel(sid, cid, game)
+        self.assertRaises(sqlite3.IntegrityError, self.db.registerChannel, sid, cid, "cstrike")
+
+        # combination constraint
+        self.assertRaises(sqlite3.IntegrityError, self.db.registerChannel, sid, cid+1000, game)
+        
+        self.db.registerChannel(sid, cid+1, game, server)
+        self.assertRaises(sqlite3.IntegrityError, self.db.registerChannel, sid, cid+100, game, server)
+        
+        self.db.registerChannel(sid, cid+2, game, server, team)
+        self.assertRaises(sqlite3.IntegrityError, self.db.registerChannel, sid, cid+200, game, server, team)
+    
+    def testChannelNameMappingTableConstraints(self):
+        self.db.reset()
+        
+        sid = 1; game = "tf"
+        
+        # mapName performs an INSERT OR REPLACE which relies on the UNIQUE constraint
+        self.db.mapName("SomeTestName", sid, game)
+        self.db.mapName("SomeOtherName", sid, game)
+        self.assertEqual(self.db.nameFor(sid, game), "SomeOtherName")
+        
+    def testNameMapping(self):
+        self.db.reset()
+        
+        sid = 1; game = "tf"; server = "[12313]";team = 2
+        self.assertEqual(self.db.nameFor(sid, game, default = "test"), "test")
+        
+        self.db.mapName("Game", sid, game)
+        self.db.mapName("Game Server", sid, game, server)
+        self.db.mapName("Game Server Team", sid, game, server, team)
+        self.db.mapName("Game Server Team 2", sid + 1, game, server, team)
+        self.db.mapName("Game Server Team 2", sid, "cstrike", server, team)
+        
+        self.assertEqual(self.db.nameFor(sid, game), "Game")
+        self.assertEqual(self.db.nameFor(sid, game, server), "Game Server")
+        self.assertEqual(self.db.nameFor(sid, game, server, team), "Game Server Team")
         
 if __name__ == "__main__":
     #import sys;sys.argv = ['', 'Test.testName']
