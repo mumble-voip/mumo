@@ -124,14 +124,16 @@ class source(MumoModule):
         current_sid = -1
         current_mumble_server = None
         
-        for sid, cid, _, _, _ in self.db.registeredChannels():
+        for sid, cid, game, server, team in self.db.registeredChannels():
             if current_sid != sid:
                 current_mumble_server = self.meta.getServer(sid)
                 current_sid = sid
                 
             try:
-                current_mumble_server.getChannelState(cid)
+                state = current_mumble_server.getChannelState(cid)
+                self.db.mapName(state.name, sid, game, server, team)
                 #TODO: Verify ACL?
+                
             except self.murmur.InvalidChannelException:
                 # Channel no longer exists
                 log.debug("(%d) Channel %d no longer exists. Dropped.", sid, cid)
@@ -360,7 +362,9 @@ class source(MumoModule):
         sid = mumble_server.id()
         game_cid = self.db.cidFor(sid, game)
         if game_cid == None:
-            game_channel_name = self.getGameName(game) % namevars
+            game_channel_name = self.db.nameFor(sid, game,
+                                                default = (self.getGameName(game) % namevars))
+            
             log.debug("(%d) Creating game channel '%s' below %d", sid, game_channel_name, cfg.source.basechannelid)
             game_cid = mumble_server.addChannel(game_channel_name, cfg.source.basechannelid)
             self.db.registerChannel(sid, game_cid, game) # Make sure we don't have orphaned server channels around
@@ -382,7 +386,9 @@ class source(MumoModule):
         """
         server_cid = self.db.cidFor(sid, game, server)
         if server_cid == None:
-            server_channel_name = self.getServerName(game) % namevars
+            server_channel_name = self.db.nameFor(sid, game, server,
+                                                  default = self.getServerName(game) % namevars)
+            
             log.debug("(%d) Creating server channel '%s' below %d", sid, server_channel_name, game_cid)
             server_cid = mumble_server.addChannel(server_channel_name, game_cid)
             self.db.registerChannel(sid, server_cid, game, server)
@@ -405,7 +411,9 @@ class source(MumoModule):
         
         team_cid = self.db.cidFor(sid, game, server, team)
         if team_cid == None:
-            team_channel_name = self.getTeamName(game, team)
+            team_channel_name = self.db.nameFor(sid, game, server, team,
+                                                default = self.getTeamName(game, team))
+            
             log.debug("(%d) Creating team channel '%s' below %d", sid, team_channel_name, server_cid)
             team_cid = mumble_server.addChannel(team_channel_name, server_cid)
             self.db.registerChannel(sid, team_cid, game, server, team)
@@ -511,7 +519,7 @@ class source(MumoModule):
         relevant = self.db.channelsFor(sid, cur_game, cur_server)
         
         for _, cur_cid, _, _, cur_team in relevant:
-            if cur_team == None:
+            if cur_team == self.db.NO_TEAM:
                 server_channel_cid = cur_cid
                 
             if self.users.usingChannel(sid, cur_cid):
@@ -656,10 +664,23 @@ class source(MumoModule):
         
         self.log().debug("(%d) Channel %d removed.", sid, cid)
         self.db.dropChannel(sid, cid)
-    
+
+    def channelStateChanged(self, server, state, context=None):
+        """
+        Updates channel name mappings when needed.
+        """
+        cid = state.id
+        sid = server.id()
+        name = state.name
+        channel = self.db.channelForCid(sid, cid)
+        if channel:
+            _, _, game, server, team = channel
+            self.db.mapName(name, sid, game, server, team)
+            self.log().debug("(%d) Name mapping for channel %d updated to '%s'", sid, cid, name)
+            
     def userTextMessage(self, server, user, message, current=None): pass
     def channelCreated(self, server, state, context=None): pass
-    def channelStateChanged(self, server, state, context=None): pass
+
     
     #
     #--- Meta callback functions

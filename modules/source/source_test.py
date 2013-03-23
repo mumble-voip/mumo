@@ -44,6 +44,14 @@ class StateMock():
         self.channel = cid
         self.session = session
         self.userid = userid
+
+class ChannelStateMock():
+    def __init__(self, cid, name, parent, groups, acls):
+        self.id = cid
+        self.name = name
+        self.parent = parent
+        self.groups = groups
+        self.acls = acls
         
 class ServerMock():
     def __init__(self, sid):
@@ -59,19 +67,20 @@ class ServerMock():
     def addChannel(self, name, parent):
         self.uid += 1
         assert(not self.uid in self.channels)
-        self.channels[self.uid] = {'name' : name,
-                                   'parent' : parent,
-                                   'groups' : {},
-                                   'acls' : [] }
+        self.channels[self.uid] = ChannelStateMock(self.uid,
+                                                   name,
+                                                   parent,
+                                                   {},
+                                                   [])
         return self.uid
     
     def addUserToGroup(self, cid, session, group):
         c = self._getChan(cid)
         
-        if session in c['groups']:
-            c['groups'][session].add(group)
+        if session in c.groups:
+            c.groups[session].add(group)
         else:
-            c['groups'][session] = set([group])
+            c.groups[session] = set([group])
     
     def _getChan(self, cid):
         if not cid in self.channels:
@@ -80,16 +89,14 @@ class ServerMock():
         return self.channels[cid]
         
     def getChannelState(self, cid):
-        self._getChan(cid)
+        return self._getChan(cid)
         
-        return {'fake': True}
-    
     def setState(self, state):
         self.user_state.append(state)
         
     def setACL(self, cid, acls, groups, inherit):
         c = self._getChan(cid)
-        c['acls'] = acls
+        c.acls = acls
     
     def _reset(self):
         self.uid = 1000
@@ -202,7 +209,7 @@ class Test(unittest.TestCase):
         self.assertEqual(self.mm.serverCB['callback'], self.s)
     
     def resetDB(self):
-        self.s.db.db.reset()
+        self.s.db.reset()
         
     def resetState(self):
         self.resetDB()
@@ -308,13 +315,13 @@ class Test(unittest.TestCase):
         
         c = mumble_server.channels
         
-        self.assertEqual(c[prev + 1]["parent"], 0)
-        self.assertEqual(c[prev + 2]["parent"], prev + 1)
-        self.assertEqual(c[prev + 3]["parent"], prev + 2)
+        self.assertEqual(c[prev + 1].parent, 0)
+        self.assertEqual(c[prev + 2].parent, prev + 1)
+        self.assertEqual(c[prev + 3].parent, prev + 2)
         
-        self.assertEqual(c[prev + 1]["name"], "Team Fortress 2")
-        self.assertEqual(c[prev + 2]["name"], "Test tf [A-1:123]")
-        self.assertEqual(c[prev + 3]["name"], "Red")
+        self.assertEqual(c[prev + 1].name, "Team Fortress 2")
+        self.assertEqual(c[prev + 2].name, "Test tf [A-1:123]")
+        self.assertEqual(c[prev + 3].name, "Red")
         
         sid = mumble_server.id()
         
@@ -327,9 +334,9 @@ class Test(unittest.TestCase):
         
         c = mumble_server.channels
         
-        self.checkACLThings(c[prev + 3]['acls'], [{'group' : '~source_tf_[A-1:123]_3'}])
-        self.checkACLThings(c[prev + 2]['acls'], [{'group' : '~source_tf_[A-1:123]'}])
-        self.checkACLThings(c[prev + 1]['acls'], [{},
+        self.checkACLThings(c[prev + 3].acls, [{'group' : '~source_tf_[A-1:123]_3'}])
+        self.checkACLThings(c[prev + 2].acls, [{'group' : '~source_tf_[A-1:123]'}])
+        self.checkACLThings(c[prev + 1].acls, [{},
                                                   {'group' : '~source_tf'}])
         
         #print self.s.db.db.execute("SELECT * FROM source").fetchall()
@@ -399,13 +406,13 @@ class Test(unittest.TestCase):
         user = source.User(user_state, {'team':TEAM_BLUE}, "tf", "[A-1:123]")
         self.s.moveUser(self.mserv, user)
         c = mumble_server.channels
-        self.assertEqual(c[prev + 1]["parent"], BASE_SID)
-        self.assertEqual(c[prev + 2]["parent"], GAME_SID)
-        self.assertEqual(c[prev + 3]["parent"], SERVER_SID)
+        self.assertEqual(c[prev + 1].parent, BASE_SID)
+        self.assertEqual(c[prev + 2].parent, GAME_SID)
+        self.assertEqual(c[prev + 3].parent, SERVER_SID)
         
-        self.assertEqual(c[prev + 1]["name"], "Team Fortress 2")
-        self.assertEqual(c[prev + 2]["name"], "Test tf [A-1:123]")
-        self.assertEqual(c[prev + 3]["name"], "Blue")
+        self.assertEqual(c[prev + 1].name, "Team Fortress 2")
+        self.assertEqual(c[prev + 2].name, "Test tf [A-1:123]")
+        self.assertEqual(c[prev + 3].name, "Blue")
         self.assertEqual(len(c), 3)
         
         self.assertEqual(user_state.channel, TEAM_RED_SID)
@@ -414,8 +421,8 @@ class Test(unittest.TestCase):
         user.identity['team'] = TEAM_RED
         self.s.moveUser(self.mserv, user)
         
-        self.assertEqual(c[prev + 4]["parent"], SERVER_SID)
-        self.assertEqual(c[prev + 4]["name"], "Red")
+        self.assertEqual(c[prev + 4].parent, SERVER_SID)
+        self.assertEqual(c[prev + 4].name, "Red")
         self.assertEqual(len(c), 4)
         
         self.assertEqual(user_state.channel, TEAM_BLUE_SID)
@@ -436,8 +443,6 @@ class Test(unittest.TestCase):
         self.assertEqual(len(self.s.db.registeredChannels()), 3)
         
         
-        
-        
     def testSetACLsForGameChannel(self):
         self.resetState()
         
@@ -445,7 +450,7 @@ class Test(unittest.TestCase):
         cid = mumble_server.addChannel("test", 1); game = "dod"
         
         self.s.setACLsForGameChannel(mumble_server, cid, game)
-        acls = mumble_server.channels[cid]['acls']
+        acls = mumble_server.channels[cid].acls
         
         self.checkACLThings(acls, [{'applyHere' : True,
                                     'applySubs' : True,
@@ -468,7 +473,7 @@ class Test(unittest.TestCase):
         mumble_server = self.mserv
         cid = mumble_server.addChannel("test", 1); game = "tf"; server = "[A-1:SomeServer]"
         self.s.setACLsForServerChannel(mumble_server, cid, game, server)
-        acls = mumble_server.channels[cid]['acls']
+        acls = mumble_server.channels[cid].acls
         
         self.checkACLThings(acls, [{'applyHere' : True,
                                     'applySubs' : False,
@@ -485,7 +490,7 @@ class Test(unittest.TestCase):
         cid = mumble_server.addChannel("test", 1); game = "tf"; server = "[A-1:SomeServer]"; team = 2
         
         self.s.setACLsForTeamChannel(mumble_server, cid, game, server, team)
-        acls = mumble_server.channels[cid]['acls']
+        acls = mumble_server.channels[cid].acls
         
         self.checkACLThings(acls, [{'applyHere' : True,
                                     'applySubs' : False,
@@ -506,11 +511,32 @@ class Test(unittest.TestCase):
         # Test
         self.s.addToGroups(mumble_server, session, game, server, team)
         
-        groups = mumble_server.channels[prev + 1]['groups'][session]
+        groups = mumble_server.channels[prev + 1].groups[session]
         self.assertIn("source_cstrike", groups)
         self.assertIn("source_cstrike_[A-1:12345]", groups)
         self.assertIn("source_cstrike_[A-1:12345]_1", groups)
         
+    def testChannelNameMapping(self):
+        self.resetState()
+        
+        mumble_server = self.mserv
+        
+        game = 'cstrike'; server = '[A-1:12345]'; team = 1
+        self.s.getOrCreateChannelFor(mumble_server, game, server, team)
+        cids = []
+        for c in mumble_server.channels.itervalues():
+            c.name = str(c.id)
+            self.s.channelStateChanged(mumble_server, c)
+            cids.append(c.id)
+            
+        mumble_server._reset()
+        self.s.validateChannelDB()
+        self.assertEqual(len(mumble_server.channels), 0)
+        self.assertEqual(len(self.s.db.registeredChannels()), 0)
+        
+        self.s.getOrCreateChannelFor(mumble_server, game, server, team)
+        for cid in cids:
+            self.assertEqual(mumble_server._getChan(cid).name, str(cid))
         
 if __name__ == "__main__":
     #logging.basicConfig(level = logging.DEBUG)
