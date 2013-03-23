@@ -136,6 +136,11 @@ class source(MumoModule):
                 # Channel no longer exists
                 log.debug("(%d) Channel %d no longer exists. Dropped.", sid, cid)
                 self.db.dropChannel(sid, cid)
+            except AttributeError:
+                # Server no longer exists
+                assert(current_mumble_server == None)
+                log.debug("(%d) Server for channel %d no longer exists. Dropped.", sid, cid)
+                self.db.dropChannel(sid, cid)
     
     def disconnected(self): pass
     

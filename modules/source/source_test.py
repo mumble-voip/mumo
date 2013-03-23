@@ -134,14 +134,18 @@ ACLS = MockACLHelper
 
 class MetaMock():
     def __init__(self):
-        self.s = ServerMock(1)
+        #TODO: Create range of server (or even cretae them on demand)
+        self.servers = {1:ServerMock(1),
+                        5:ServerMock(5),
+                        10:ServerMock(10)}
+        self.s = self.servers[1] # Shorthand
         
     def getServer(self, sid):
-        assert(sid == self.s.id())
-        return self.s
+        return self.servers.get(sid, None)
 
     def _reset(self):
-        self.s._reset()
+        for server in self.servers.itervalues():
+            server._reset()
 
 class ManagerMock():
     SERVERS_ALL = [-1]
@@ -416,6 +420,23 @@ class Test(unittest.TestCase):
         
         self.assertEqual(user_state.channel, TEAM_BLUE_SID)
         self.assertEqual(mumble_server.user_state[0], user_state)
+        
+    def testValidateChannelDB(self):
+        self.resetState()
+        
+        self.s.db.registerChannel(5, 6, "7")
+        self.s.db.registerChannel(5, 7, "7", "8")
+        self.s.db.registerChannel(5, 8, "7", "8", 9)
+        self.s.db.registerChannel(6, 9, "8", "9", 10)
+        self.s.db.registerChannel(5, 10, "7", "123", 9)
+        
+        game = 'cstrike'; server = '[A123:123]'; team = 1
+        self.s.getOrCreateChannelFor(self.mserv, game, server, team)
+        self.s.validateChannelDB()
+        self.assertEqual(len(self.s.db.registeredChannels()), 3)
+        
+        
+        
         
     def testSetACLsForGameChannel(self):
         self.resetState()
