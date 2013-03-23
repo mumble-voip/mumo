@@ -59,7 +59,7 @@ default.update({'ice':(('host', str, '127.0.0.1'),
                       ('port', int, 6502),
                       ('slice', str, ''),
                       ('secret', str, ''),
-                      ('slicedir', str, '/usr/share/slice'),
+                      ('slicedirs', str, '/usr/share/slice;/usr/share/Ice/slice'),
                       ('watchdog', int, 30),
                       ('callback_host', str, '127.0.0.1'),
                       ('callback_port', int, -1)),
@@ -69,6 +69,25 @@ default.update({'ice':(('host', str, '127.0.0.1'),
                'system':(('pidfile', str, 'mumo.pid'),),
                'log':(('level', int, logging.DEBUG),
                       ('file', str, 'mumo.log'))})
+
+def load_slice(slice):
+    # 
+    #--- Loads a given slicefile, used by dynload_slice and fsload_slice
+    #    This function works around a number of differences between Ice python
+    #    versions and distributions when it comes to slice include directories.
+    #
+    fallback_slicedirs = ["-I" + sdir for sdir in cfg.ice.slicedirs.split(';')]
+    
+    if not hasattr(Ice, "getSliceDir"):
+        Ice.loadSlice('-I%s %s' % (" ".join(fallback_slicedirs), slice))
+    else:
+        slicedir = Ice.getSliceDir()
+        if not slicedir:
+            slicedirs = fallback_slicedirs
+        else:
+            slicedirs = ['-I' + slicedir]
+            
+        Ice.loadSlice('', slicedirs + [slice])
 
 def dynload_slice(prx):
     #
@@ -82,7 +101,7 @@ def dynload_slice(prx):
         dynslicefile = os.fdopen(dynslicefiledesc, 'w')
         dynslicefile.write(slice)
         dynslicefile.flush()
-        Ice.loadSlice('', ['-I' + Ice.getSliceDir(), dynslicefilepath])
+        load_slice(dynslicefilepath)
         dynslicefile.close()
         os.remove(dynslicefilepath)
     except Exception, e:
@@ -96,10 +115,7 @@ def fsload_slice(slice):
     #--- Load slice from file system
     #
     debug("Loading slice from filesystem: %s" % slice)
-    if not hasattr(Ice, "getSliceDir"):
-        Ice.loadSlice('-I%s %s' % (cfg.ice.slicedir, slice))
-    else:
-        Ice.loadSlice('', ['-I' + Ice.getSliceDir(), slice])
+    load_slice(slice)
 
 def do_main_program():
     #
