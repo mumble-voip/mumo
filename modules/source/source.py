@@ -570,7 +570,9 @@ class source(MumoModule):
         """
         try:
             # For now all values are integers
-            d = {k:int(v) for k, v in [var.split(':', 1) for var in identity.split(';')]}
+            d = {}
+            for k, v in [var.split(':', 1) for var in identity.split(';')]:
+                d[k] = int(v)
             
             # Make sure mandatory values are present
             if not "team" in d: return None
