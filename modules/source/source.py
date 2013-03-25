@@ -64,7 +64,7 @@ class source(MumoModule):
                              ('database', str, "source.sqlite"),
                              ('basechannelid', int, 0),
                              ('mumbleservers', commaSeperatedIntegers, []),
-                             ('gameregex', re.compile, re.compile("^(tf|dod|cstrike)$")),
+                             ('gameregex', re.compile, re.compile("^(tf|dod|cstrike|hl2mp)$")),
                              ('groupprefix', str, "source_")
                              ),
                       
