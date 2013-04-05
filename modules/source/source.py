@@ -209,9 +209,10 @@ class source(MumoModule):
         assert(old)
         
         self.users.remove(sid, old.state.session)
-        self.removeFromGroups(mumble_server, old.state.session, old.game, old.server, old.identity["team"])
         
         if new:
+            self.removeFromGroups(mumble_server, old.state.session, old.game, old.server, old.identity["team"])
+            
             bcid = self.cfg().source.basechannelid
             self.dlog(sid, old.state, "User stopped playing. Moving to %d.", bcid)
             self.moveUserToCid(mumble_server, new.state, bcid)
