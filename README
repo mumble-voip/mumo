@@ -33,7 +33,7 @@ Currently mumo comes with the following modules:
         Mumble's positional uadio system and does not require cooperation
         by the game server. Currently the following source engine based
         games are supported: Team Fortress 2, Day of Defeat: Source,
-        CounterStrike: Source, Half Life 2: Death Match.
+        Counter-Strike: Source, Half-Life 2: Deathmatch.
 
  * test: A debugging plugin that registers for all possible events and
         outputs every call with parameters into the debug log.
