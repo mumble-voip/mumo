@@ -130,6 +130,7 @@ def do_main_program():
         initdata.properties.setProperty(prop, val)
         
     initdata.properties.setProperty('Ice.ImplicitContext', 'Shared')
+    initdata.properties.setProperty('Ice.Default.EncodingVersion', '1.0')
     initdata.logger = CustomLogger()
 
     ice = Ice.initialize(initdata)
