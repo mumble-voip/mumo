@@ -95,8 +95,19 @@ def dynload_slice(prx):
     #
     info("Loading slice from server")
     try:
-        slice = IcePy.Operation('getSlice', Ice.OperationMode.Idempotent, Ice.OperationMode.Idempotent, True, (), (), (), IcePy._t_string, ()).invoke(prx, ((), None))
+        # Check IcePy version as this internal function changes between version.
+        # In case it breaks with future versions use slice2py and search for
+        # "IcePy.Operation('getSlice'," for updates in the generated bindings.
+        op = None
+        if IcePy.intVersion() < 30500L:
+            # Old 3.4 signature with 9 parameters
+            op = IcePy.Operation('getSlice', Ice.OperationMode.Idempotent, Ice.OperationMode.Idempotent, True, (), (), (), IcePy._t_string, ())
 
+        else:
+            # New 3.5 signature with 10 parameters.
+            op = IcePy.Operation('getSlice', Ice.OperationMode.Idempotent, Ice.OperationMode.Idempotent, True, None, (), (), (), ((), IcePy._t_string, False, 0), ())
+
+        slice = op.invoke(prx, ((), None))
         (dynslicefiledesc, dynslicefilepath)  = tempfile.mkstemp(suffix = '.ice')
         dynslicefile = os.fdopen(dynslicefiledesc, 'w')
         dynslicefile.write(slice)
