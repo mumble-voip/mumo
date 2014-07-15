@@ -41,7 +41,7 @@ Currently mumo comes with the following modules:
 If you have a module that you would like to see shipped with mumo or
 have any improvements or suggestions please contact us. Whether you
 prefer a pull request, visiting us in IRC in #mumble on Freenode or
-starting a thread in our forums at http://sourceforge.net/apps/phpbb/mumble/ is up to you.
+creating an issue with a diff-patch is up to you.
 
 To configure and run mumo take a look at the mumo.ini and the module
 specific configurations in modules-available folder. Enabling modules
