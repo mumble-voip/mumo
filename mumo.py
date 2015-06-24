@@ -542,6 +542,15 @@ if __name__ == '__main__':
         ret = do_main_program()
     else:
         pidfile = daemon.pidlockfile.TimeoutPIDLockFile(cfg.system.pidfile, 5)
+        if pidfile.is_locked():
+            try:
+                os.kill(pidfile.read_pid(), 0)
+                print >> sys.stderr, 'Mumo already running as %s' % pidfile.read_pid()
+                sys.exit(1)
+            except OSError:
+                print >> sys.stderr, 'Found stale mumo pid file but no process, breaking lock'
+                pidfile.break_lock()
+
         context = daemon.DaemonContext(working_directory=sys.path[0],
                                        stderr=logfile,
                                        pidfile=pidfile)
