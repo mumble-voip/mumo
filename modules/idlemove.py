@@ -59,7 +59,7 @@ class idlemove(MumoModule):
                              ('deafen', commaSeperatedBool, [False]),
                              ('channel', commaSeperatedIntegers, [1]),
                              ('source_channel', commaSeperatedIntegers, [-1]),
-                             ('whitelist', commaSeperatedStrings, [''])
+                             ('whitelist', commaSeperatedStrings, [])
                              ),
                     }
     
@@ -225,5 +225,4 @@ class idlemove(MumoModule):
     def stopped(self, server, context = None):
         sid = server.id()
         self.affectedusers[sid] = set()
-        self.log().debug('Server %d gone', sid)
-    
+        self.log().debug('Server %d gone', sid) 
