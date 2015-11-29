@@ -45,7 +45,8 @@ class Config(object):
         if filename:
             cfg = ConfigParser.RawConfigParser()
             cfg.optionxform = str
-            cfg.read(filename)
+            with open(filename) as f:
+                cfg.readfp(f)
             sections.update(cfg.sections())
             
         for section in sections:
