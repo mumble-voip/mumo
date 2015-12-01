@@ -39,6 +39,7 @@
 
 from mumo_module import (commaSeperatedIntegers,
                          commaSeperatedBool,
+                         commaSeperatedStrings,
                          MumoModule)
 
 from threading import Timer
@@ -57,7 +58,8 @@ class idlemove(MumoModule):
                              ('mute', commaSeperatedBool, [True]),
                              ('deafen', commaSeperatedBool, [False]),
                              ('channel', commaSeperatedIntegers, [1]),
-                             ('source_channel', commaSeperatedIntegers, [-1])
+                             ('source_channel', commaSeperatedIntegers, [-1]),
+                             ('whitelist', commaSeperatedStrings, [])
                              ),
                     }
     
@@ -127,6 +129,10 @@ class idlemove(MumoModule):
             self.affectedusers[sid] = set()
             index = self.affectedusers[sid]
         
+        # Check if the user is whitelisted
+        if user.name in scfg.whitelist:
+            return
+
         # Remember values so we can see changes later
         threshold = None
         mute = user.mute
@@ -219,5 +225,4 @@ class idlemove(MumoModule):
     def stopped(self, server, context = None):
         sid = server.id()
         self.affectedusers[sid] = set()
-        self.log().debug('Server %d gone', sid)
-    
+        self.log().debug('Server %d gone', sid) 
