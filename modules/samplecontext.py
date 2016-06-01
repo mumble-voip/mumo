@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8
 
 # Copyright (C) 2015 Stefan Hacker <dd0t@users.sourceforge.net>
@@ -35,17 +35,19 @@
 # entries to a user's context menu.
 #
 
-from mumo_module import (commaSeperatedIntegers,
-                         MumoModule)
 import cgi
 
+from config import commaSeperatedIntegers
+from mumo_module import MumoModule
+
+
 class samplecontext(MumoModule):
-    default_config = {'samplecontext':(
-                                ('servers', commaSeperatedIntegers, []),
-                                ),
-                    }
-    
-    def __init__(self, name, manager, configuration = None):
+    default_config = {'samplecontext': (
+        ('servers', commaSeperatedIntegers, []),
+    ),
+    }
+
+    def __init__(self, name, manager, configuration=None):
         MumoModule.__init__(self, name, manager, configuration)
         self.murmur = manager.getMurmurModule()
         self.action_poke_user = manager.getUniqueAction()
@@ -56,19 +58,19 @@ class samplecontext(MumoModule):
         manager = self.manager()
         log = self.log()
         log.debug("Register for Server callbacks")
-        
+
         servers = self.cfg().samplecontext.servers
         if not servers:
             servers = manager.SERVERS_ALL
-            
+
         manager.subscribeServerCallbacks(self, servers)
-    
+
     def disconnected(self): pass
 
     #
-    #--- Server callback functions
+    # --- Server callback functions
     #
-    
+
     def __on_poke_user(self, server, action, user, target):
         assert action == self.action_poke_user
         self.log().info(user.name + " poked " + target.name)
@@ -78,7 +80,7 @@ class samplecontext(MumoModule):
         assert action == self.action_info
         self.log().info(user.name + " wants info on " + str(target));
         server.sendMessage(user.session,
-                "<small><pre>" + cgi.escape(str(target)) + "</pre></small>")
+                           "<small><pre>" + cgi.escape(str(target)) + "</pre></small>")
 
     def __on_remove_this(self, server, action, user, target):
         # This will remove the entry identified by "action" from
@@ -86,7 +88,7 @@ class samplecontext(MumoModule):
         self.log().info(user.name + " triggered removal")
         self.manager().removeContextMenuEntry(server, action)
 
-    def userConnected(self, server, user, context = None):
+    def userConnected(self, server, user, context=None):
         # Adding the entries here means if mumo starts up after users
         # already connected they won't have the new entries before they
         # reconnect. You can also use the "connected" callback to
@@ -97,36 +99,40 @@ class samplecontext(MumoModule):
 
         manager = self.manager()
         manager.addContextMenuEntry(
-                server, # Server of user
-                user, # User which should receive the new entry
-                self.action_poke_user, # Identifier for the action
-                "Poke", # Text in the client
-                self.__on_poke_user, # Callback called when user uses the entry
-                self.murmur.ContextUser # We only want to show this entry on users
+            server,  # Server of user
+            user,  # User which should receive the new entry
+            self.action_poke_user,  # Identifier for the action
+            "Poke",  # Text in the client
+            self.__on_poke_user,  # Callback called when user uses the entry
+            self.murmur.ContextUser  # We only want to show this entry on users
         )
 
         manager.addContextMenuEntry(
-                server,
-                user,
-                self.action_info,
-                "Info",
-                self.__on_info,
-                self.murmur.ContextUser | self.murmur.ContextChannel # Show for users and channels
+            server,
+            user,
+            self.action_info,
+            "Info",
+            self.__on_info,
+            self.murmur.ContextUser | self.murmur.ContextChannel  # Show for users and channels
         )
 
         manager.addContextMenuEntry(
-                server,
-                user,
-                self.action_remove,
-                "Remove this entry from everyone",
-                self.__on_remove_this,
-                self.murmur.ContextUser | self.murmur.ContextChannel | self.murmur.ContextServer
+            server,
+            user,
+            self.action_remove,
+            "Remove this entry from everyone",
+            self.__on_remove_this,
+            self.murmur.ContextUser | self.murmur.ContextChannel | self.murmur.ContextServer
         )
 
-    def userDisconnected(self, server, state, context = None): pass
-    def userStateChanged(self, server, state, context = None): pass
+    def userDisconnected(self, server, state, context=None): pass
+
+    def userStateChanged(self, server, state, context=None): pass
+
     def userTextMessage(self, server, user, message, current=None): pass
-    def channelCreated(self, server, state, context = None): pass
-    def channelRemoved(self, server, state, context = None): pass
-    def channelStateChanged(self, server, state, context = None): pass
 
+    def channelCreated(self, server, state, context=None): pass
+
+    def channelRemoved(self, server, state, context=None): pass
+
+    def channelStateChanged(self, server, state, context=None): pass

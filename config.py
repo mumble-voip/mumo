@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8
 
 # Copyright (C) 2010 Stefan Hacker <dd0t@users.sourceforge.net>
@@ -29,40 +29,42 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import ConfigParser
+import configparser
 import types
+
 
 class Config(object):
     """
     Small abstraction for config loading
     """
 
-    def __init__(self, filename = None, default = None):
+    def __init__(self, filename=None, default=None):
         if (filename and not default) or \
-            (not filename and not default): return
-        
-        sections = set(default.iterkeys())
+                (not filename and not default): return
+
+        sections = set(default.keys())
         if filename:
-            cfg = ConfigParser.RawConfigParser()
+            cfg = configparser.RawConfigParser()
             cfg.optionxform = str
             with open(filename) as f:
-                cfg.readfp(f)
+                cfg.read_file(f)
             sections.update(cfg.sections())
-            
+
         for section in sections:
-            if type(section) == types.FunctionType: continue
-            
+            if isinstance(section, types.FunctionType):
+                continue
+
             match = None
-            for default_section in default.iterkeys():
+            for default_section in default.keys():
                 try:
                     if section == default_section or \
-                        (type(default_section) == types.FunctionType and default_section(section)):
+                            (isinstance(default_section, types.FunctionType) and default_section(section)):
                         match = default_section
                         break
                 except ValueError:
                     continue
-                
-            if match == None:
+
+            if match is None:
                 continue
 
             optiondefaults = default[match]
@@ -74,7 +76,7 @@ class Config(object):
                 else:
                     try:
                         self.__dict__[section] = cfg.items(section)
-                    except ConfigParser.NoSectionError:
+                    except configparser.NoSectionError:
                         self.__dict__[section] = []
             else:
                 self.__dict__[section] = Config()
@@ -84,14 +86,15 @@ class Config(object):
                     else:
                         try:
                             self.__dict__[section].__dict__[name] = conv(cfg.get(section, name))
-                        except (ValueError, ConfigParser.NoSectionError, ConfigParser.NoOptionError):
+                        except (ValueError, configparser.NoSectionError, configparser.NoOptionError):
                             self.__dict__[section].__dict__[name] = vdefault
-    
+
     def __getitem__(self, key):
         return self.__dict__.__getitem__(key)
-    
+
     def __contains__(self, key):
         return self.__dict__.__contains__(key)
+
 
 def x2bool(s):
     """
@@ -99,27 +102,30 @@ def x2bool(s):
     """
     if isinstance(s, bool):
         return s
-    elif isinstance(s, basestring):
+    elif isinstance(s, str):
         return s.strip().lower() in ['1', 'true']
     raise ValueError()
+
 
 def commaSeperatedIntegers(s):
     """
     Helper function to convert a string from the config
     containing comma seperated integers into a list of integers
     """
-    return map(int, s.split(','))
+    return list(map(int, s.split(',')))
+
 
 def commaSeperatedStrings(s):
     """
     Helper function to convert a string from the config
     containing comma seperated strings into a list of strings
     """
-    return map(str.strip, s.split(','))
+    return list(map(str.strip, s.split(',')))
+
 
 def commaSeperatedBool(s):
     """
     Helper function to convert a string from the config
     containing comma seperated strings into a list of booleans
     """
-    return map(x2bool, s.split(','))
+    return list(map(x2bool, s.split(',')))

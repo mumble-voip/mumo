@@ -57,7 +57,7 @@ modules-enabled folder.
 
 ## Requirements
 mumo requires:
-* python 2.7*
+* python >=3.2
 * python-zeroc-ice
 * murmur >=1.2.3*
 

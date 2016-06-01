@@ -17,7 +17,7 @@ DESC="Mumo bot for Mumble"
 WORKDIR=/opt/mumo
 PIDDIR=$WORKDIR
 PIDFILE=$PIDDIR/mumo.pid
-DAEMON=/usr/bin/python
+DAEMON=/usr/bin/python3
 USER=mumo
 GROUP=mumo
 

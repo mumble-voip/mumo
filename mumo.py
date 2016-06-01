@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8
 
 # Copyright (C) 2010-2013 Stefan Hacker <dd0t@users.sourceforge.net>
@@ -29,50 +29,51 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import logging
 import os
 import sys
+import tempfile
+from logging import (debug,
+                     info,
+                     warning,
+                     error,
+                     critical,
+                     exception,
+                     getLogger)
+from optparse import OptionParser
+from threading import Timer
+
 import Ice
 import IcePy
-import logging
-import tempfile
-from config import (Config,
-                    x2bool,
-                    commaSeperatedIntegers)
 
-from threading  import Timer
-from optparse   import OptionParser
-from logging    import (debug,
-                        info,
-                        warning,
-                        error,
-                        critical,
-                        exception,
-                        getLogger)
+from config import (Config,
+                    commaSeperatedIntegers)
 from mumo_manager import MumoManager
 
 #
-#--- Default configuration values
+# --- Default configuration values
 #
 cfgfile = 'mumo.ini'
 default = MumoManager.cfg_default.copy()
-default.update({'ice':(('host', str, '127.0.0.1'),
-                      ('port', int, 6502),
-                      ('slice', str, ''),
-                      ('secret', str, ''),
-                      ('slicedirs', str, '/usr/share/slice;/usr/share/Ice/slice'),
-                      ('watchdog', int, 30),
-                      ('callback_host', str, '127.0.0.1'),
-                      ('callback_port', int, -1)),
+default.update({'ice': (('host', str, '127.0.0.1'),
+                        ('port', int, 6502),
+                        ('slice', str, ''),
+                        ('secret', str, ''),
+                        ('slicedirs', str, '/usr/share/slice;/usr/share/Ice/slice'),
+                        ('watchdog', int, 30),
+                        ('callback_host', str, '127.0.0.1'),
+                        ('callback_port', int, -1)),
 
-               'iceraw':None,
-               'murmur':(('servers', commaSeperatedIntegers, []),),
-               'system':(('pidfile', str, 'mumo.pid'),),
-               'log':(('level', int, logging.DEBUG),
-                      ('file', str, 'mumo.log'))})
+                'iceraw': None,
+                'murmur': (('servers', commaSeperatedIntegers, []),),
+                'system': (('pidfile', str, 'mumo.pid'),),
+                'log': (('level', int, logging.DEBUG),
+                        ('file', str, 'mumo.log'))})
+
 
 def load_slice(slice):
     #
-    #--- Loads a given slicefile, used by dynload_slice and fsload_slice
+    # --- Loads a given slicefile, used by dynload_slice and fsload_slice
     #    This function works around a number of differences between Ice python
     #    versions and distributions when it comes to slice include directories.
     #
@@ -89,9 +90,10 @@ def load_slice(slice):
 
         Ice.loadSlice('', slicedirs + [slice])
 
+
 def dynload_slice(prx):
     #
-    #--- Dynamically retrieves the slice file from the target server
+    # --- Dynamically retrieves the slice file from the target server
     #
     info("Loading slice from server")
     try:
@@ -99,23 +101,25 @@ def dynload_slice(prx):
         # In case it breaks with future versions use slice2py and search for
         # "IcePy.Operation('getSlice'," for updates in the generated bindings.
         op = None
-        if IcePy.intVersion() < 30500L:
+        if IcePy.intVersion() < 30500:
             # Old 3.4 signature with 9 parameters
-            op = IcePy.Operation('getSlice', Ice.OperationMode.Idempotent, Ice.OperationMode.Idempotent, True, (), (), (), IcePy._t_string, ())
+            op = IcePy.Operation('getSlice', Ice.OperationMode.Idempotent, Ice.OperationMode.Idempotent, True, (), (),
+                                 (), IcePy._t_string, ())
 
         else:
             # New 3.5 signature with 10 parameters.
-            op = IcePy.Operation('getSlice', Ice.OperationMode.Idempotent, Ice.OperationMode.Idempotent, True, None, (), (), (), ((), IcePy._t_string, False, 0), ())
+            op = IcePy.Operation('getSlice', Ice.OperationMode.Idempotent, Ice.OperationMode.Idempotent, True, None, (),
+                                 (), (), ((), IcePy._t_string, False, 0), ())
 
         slice = op.invoke(prx, ((), None))
-        (dynslicefiledesc, dynslicefilepath)  = tempfile.mkstemp(suffix = '.ice')
+        (dynslicefiledesc, dynslicefilepath) = tempfile.mkstemp(suffix='.ice')
         dynslicefile = os.fdopen(dynslicefiledesc, 'w')
         dynslicefile.write(slice)
         dynslicefile.flush()
         load_slice(dynslicefilepath)
         dynslicefile.close()
         os.remove(dynslicefilepath)
-    except Exception, e:
+    except Exception as e:
         error("Retrieving slice from server failed")
         exception(e)
         raise
@@ -123,14 +127,15 @@ def dynload_slice(prx):
 
 def fsload_slice(slice):
     #
-    #--- Load slice from file system
+    # --- Load slice from file system
     #
     debug("Loading slice from filesystem: %s" % slice)
     load_slice(slice)
 
+
 def do_main_program():
     #
-    #--- Moderator implementation
+    # --- Moderator implementation
     #    All of this has to go in here so we can correctly daemonize the tool
     #    without loosing the file descriptors opened by the Ice module
 
@@ -153,6 +158,7 @@ def do_main_program():
     else:
         fsload_slice(cfg.ice.slice)
 
+    # noinspection PyUnresolvedReferences
     import Murmur
 
     class mumoIceApp(Ice.Application):
@@ -201,7 +207,8 @@ def do_main_program():
             else:
                 cbp = ''
 
-            adapter = ice.createObjectAdapterWithEndpoints('Callback.Client', 'tcp -h %s%s' % (cfg.ice.callback_host, cbp))
+            adapter = ice.createObjectAdapterWithEndpoints('Callback.Client',
+                                                           'tcp -h %s%s' % (cfg.ice.callback_host, cbp))
             adapter.activate()
             self.adapter = adapter
             self.manager.setClientAdapter(adapter)
@@ -230,11 +237,12 @@ def do_main_program():
                         servercb = Murmur.ServerCallbackPrx.uncheckedCast(servercbprx)
                         server.addCallback(servercb)
 
-            except (Murmur.InvalidSecretException, Ice.UnknownUserException, Ice.ConnectionRefusedException), e:
+            except (Murmur.InvalidSecretException, Ice.UnknownUserException, Ice.ConnectionRefusedException) as e:
                 if isinstance(e, Ice.ConnectionRefusedException):
                     error('Server refused connection')
                 elif isinstance(e, Murmur.InvalidSecretException) or \
-                     isinstance(e, Ice.UnknownUserException) and (e.unknown == 'Murmur::InvalidSecretException'):
+                        isinstance(e, Ice.UnknownUserException) and (
+                        e.unknown == 'Murmur::InvalidSecretException'):
                     error('Invalid ice secret')
                 else:
                     # We do not actually want to handle this one, re-raise it
@@ -253,7 +261,7 @@ def do_main_program():
             Tries to retrieve the server uptime to determine wheter the server is
             still responsive or has restarted in the meantime
             """
-            #debug('Watchdog run')
+            # debug('Watchdog run')
             try:
                 uptime = self.meta.getUptime()
                 if self.metaUptime > 0:
@@ -266,8 +274,9 @@ def do_main_program():
                         self.attachCallbacks()
 
                 self.metaUptime = uptime
-            except Ice.Exception, e:
-                error('Connection to server lost, will try to reestablish callbacks in next watchdog run (%ds)', cfg.ice.watchdog)
+            except Ice.Exception as e:
+                error('Connection to server lost, will try to reestablish callbacks in next watchdog run (%ds)',
+                      cfg.ice.watchdog)
                 debug(str(e))
                 self.attachCallbacks()
 
@@ -306,11 +315,12 @@ def do_main_program():
 
         The default is to catch all non-Ice exceptions.
         """
+
         def newdec(func):
             def newfunc(*args, **kws):
                 try:
                     return func(*args, **kws)
-                except Exception, e:
+                except Exception as e:
                     catch = True
                     for ex in exceptions:
                         if isinstance(e, ex):
@@ -324,6 +334,7 @@ def do_main_program():
                     raise
 
             return newfunc
+
         return newdec
 
     class metaCallback(Murmur.MetaCallback):
@@ -347,7 +358,7 @@ def do_main_program():
                     server.addCallback(servercb)
 
                 # Apparently this server was restarted without us noticing
-                except (Murmur.InvalidSecretException, Ice.UnknownUserException), e:
+                except (Murmur.InvalidSecretException, Ice.UnknownUserException) as e:
                     if hasattr(e, "unknown") and e.unknown != "Murmur::InvalidSecretException":
                         # Special handling for Murmur 1.2.2 servers with invalid slice files
                         raise e
@@ -382,10 +393,10 @@ def do_main_program():
 
             debug('Server shutdown stopped a virtual server')
 
-
     def forwardServer(fu):
         def new_fu(self, *args, **kwargs):
             self.manager.announceServer(self.sid, fu.__name__, self.server, *args, **kwargs)
+
         return new_fu
 
     class serverCallback(Murmur.ServerCallback):
@@ -405,24 +416,30 @@ def do_main_program():
         @checkSecret
         @forwardServer
         def userStateChanged(self, u, current=None): pass
+
         @checkSecret
         @forwardServer
         def userDisconnected(self, u, current=None): pass
+
         @checkSecret
         @forwardServer
         def userConnected(self, u, current=None): pass
+
         @checkSecret
         @forwardServer
         def channelCreated(self, c, current=None): pass
+
         @checkSecret
         @forwardServer
         def channelRemoved(self, c, current=None): pass
+
         @checkSecret
         @forwardServer
         def channelStateChanged(self, c, current=None): pass
+
         @checkSecret
         @forwardServer
-        def userTextMessage(self, u, m, current=None) : pass
+        def userTextMessage(self, u, m, current=None): pass
 
     class customContextCallback(Murmur.ServerContextCallback):
         def __init__(self, contextActionCallback, *ctx):
@@ -436,7 +453,7 @@ def do_main_program():
             self.cb(*(self.ctx + args), **argv)
 
     #
-    #--- Start of moderator
+    # --- Start of moderator
     #
     info('Starting mumble moderator')
     debug('Initializing manager')
@@ -453,6 +470,7 @@ def do_main_program():
     manager.stop()
     info('Shutdown complete')
     return state
+
 
 class CustomLogger(Ice.Logger):
     """
@@ -476,8 +494,9 @@ class CustomLogger(Ice.Logger):
     def error(self, message):
         self._log.error(message)
 
+
 #
-#--- Start of program
+# --- Start of program
 #
 if __name__ == '__main__':
     # Parse commandline options
@@ -501,22 +520,21 @@ if __name__ == '__main__':
     # Load configuration
     try:
         cfg = Config(option.ini, default)
-    except Exception, e:
-        print >> sys.stderr, 'Fatal error, could not load config file from "%s"' % cfgfile
-        print >> sys.stderr, e
+    except Exception as e:
+        print('Fatal error, could not load config file from "%s"' % cfgfile, file=sys.stderr)
+        print(e, file=sys.stderr)
         sys.exit(1)
 
     # Initialise logger
     if cfg.log.file:
         try:
             logfile = open(cfg.log.file, 'a')
-        except IOError, e:
-            #print>>sys.stderr, str(e)
-            print >> sys.stderr, 'Fatal error, could not open logfile "%s"' % cfg.log.file
+        except IOError as e:
+            # print>>sys.stderr, str(e)
+            print('Fatal error, could not open logfile "%s"' % cfg.log.file, file=sys.stderr)
             sys.exit(1)
     else:
-        logfile = logging.sys.stderr
-
+        logfile = logging.sys.stdout
 
     if option.verbose:
         level = cfg.log.level
@@ -531,16 +549,17 @@ if __name__ == '__main__':
     # unless the user explicitly defined what he expected with the -a / -d parameter.
     try:
         if option.force_app:
-            raise ImportError # Pretend that we couldn't import the daemon lib
+            raise ImportError  # Pretend that we couldn't import the daemon lib
         import daemon
+
         try:
             from daemon.pidfile import TimeoutPIDLockFile
-        except ImportError: # Version < 1.6
+        except ImportError:  # Version < 1.6
             from daemon.pidlockfile import TimeoutPIDLockFile
     except ImportError:
         if option.force_daemon:
-            print >> sys.stderr, 'Fatal error, could not daemonize process due to missing "daemon" library, ' \
-            'please install the missing dependency and restart the application'
+            print('Fatal error, could not daemonize process due to missing "daemon" library, '
+                  'please install the missing dependency and restart the application', file=sys.stderr)
             sys.exit(1)
         ret = do_main_program()
     else:
@@ -548,10 +567,10 @@ if __name__ == '__main__':
         if pidfile.is_locked():
             try:
                 os.kill(pidfile.read_pid(), 0)
-                print >> sys.stderr, 'Mumo already running as %s' % pidfile.read_pid()
+                print('Mumo already running as %s' % pidfile.read_pid(), file=sys.stderr)
                 sys.exit(1)
             except OSError:
-                print >> sys.stderr, 'Found stale mumo pid file but no process, breaking lock'
+                print('Found stale mumo pid file but no process, breaking lock', file=sys.stderr)
                 pidfile.break_lock()
 
         context = daemon.DaemonContext(working_directory=sys.path[0],

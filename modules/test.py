@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8
 
 # Copyright (C) 2010-2011 Stefan Hacker <dd0t@users.sourceforge.net>
@@ -36,22 +36,20 @@
 # debugging purposes. Usually you don't want
 # to use this.
 #
+from mumo_module import MumoModule, logModFu
 
-from mumo_module import (x2bool,
-                         MumoModule,
-                         logModFu)
-    
+
 class test(MumoModule):
-    default_config = {'testing':(('tvar', int , 1),
-                                 ('novar', str, 'no bernd'))}
-    
-    def __init__(self, name, manager, configuration = None):
+    default_config = {'testing': (('tvar', int, 1),
+                                  ('novar', str, 'no bernd'))}
+
+    def __init__(self, name, manager, configuration=None):
         MumoModule.__init__(self, name, manager, configuration)
         log = self.log()
         cfg = self.cfg()
         log.debug("tvar: %s", cfg.testing.tvar)
         log.debug("novar: %s", cfg.testing.novar)
-    
+
     @logModFu
     def connected(self):
         manager = self.manager()
@@ -60,56 +58,57 @@ class test(MumoModule):
         manager.subscribeMetaCallbacks(self)
         manager.subscribeServerCallbacks(self, manager.SERVERS_ALL)
         manager.subscribeContextCallbacks(self, manager.SERVERS_ALL)
-    
+
     @logModFu
     def disconnected(self):
         self.log().debug("Ice disconnected")
+
     #
-    #--- Meta callback functions
+    # --- Meta callback functions
     #
-    
+
     @logModFu
-    def started(self, server, context = None):
+    def started(self, server, context=None):
         pass
-    
+
     @logModFu
-    def stopped(self, server, context = None):
+    def stopped(self, server, context=None):
         pass
-    
+
     #
-    #--- Server callback functions
+    # --- Server callback functions
     #
     @logModFu
-    def userConnected(self, server, state, context = None):
+    def userConnected(self, server, state, context=None):
         pass
-    
+
     @logModFu
-    def userDisconnected(self, server, state, context = None):
+    def userDisconnected(self, server, state, context=None):
         pass
-    
+
     @logModFu
-    def userStateChanged(self, server, state, context = None):
+    def userStateChanged(self, server, state, context=None):
         pass
-    
+
     @logModFu
     def userTextMessage(self, server, user, message, current=None):
         pass
-    
+
     @logModFu
-    def channelCreated(self, server, state, context = None):
+    def channelCreated(self, server, state, context=None):
         pass
-    
+
     @logModFu
-    def channelRemoved(self, server, state, context = None):
+    def channelRemoved(self, server, state, context=None):
         pass
-    
+
     @logModFu
-    def channelStateChanged(self, server, state, context = None):
+    def channelStateChanged(self, server, state, context=None):
         pass
-    
+
     #
-    #--- Server context callback functions
+    # --- Server context callback functions
     #
     @logModFu
-    def contextAction(self, server, action, user, session, channelid, context = None):
+    def contextAction(self, server, action, user, session, channelid, context=None):
         pass
