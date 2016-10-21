@@ -59,7 +59,8 @@ class idlemove(MumoModule):
                              ('deafen', commaSeperatedBool, [False]),
                              ('channel', commaSeperatedIntegers, [1]),
                              ('source_channel', commaSeperatedIntegers, [-1]),
-                             ('whitelist', commaSeperatedStrings, [])
+                             ('whitelist', commaSeperatedStrings, []),
+                             ('channel_whitelist', commaSeperatedIntegers, [])
                              ),
                     }
     
@@ -159,6 +160,7 @@ class idlemove(MumoModule):
                 continue
 
             if user.idlesecs > threshold and\
+                user.channel not in scfg.channel_whitelist and\
                 (source_channel == -1 or\
                  user.channel == source_channel or\
                  user.channel == channel):
