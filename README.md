@@ -51,10 +51,24 @@ specific configurations in modules-available folder. Enabling modules
 is done by linking the configuration in modules-available to the
 modules-enabled folder.
 
+For running with gRPC:
+```
+cd mumo
+pip install grpcio-tools recordclass
+wget https://raw.githubusercontent.com/mumble-voip/mumble/master/src/murmur/MurmurRPC.proto
+python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. MurmurRPC.proto
+```
+
 ## Requirements
 mumo requires:
 * python 2.7*
 * python-zeroc-ice
 * murmur >=1.2.3*
+
+when using gRPC, mumo instead requires:
+* python 2.7*
+* python-grpcio-tools
+* python-recordclass
+* murmur >=1.3 (compiled with gRPC enabled)
 
 (* Not tested with lower versions yet.)

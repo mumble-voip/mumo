@@ -29,7 +29,7 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from threading import Thread
+from threading import Thread, current_thread
 from Queue import Queue, Empty
 from logging import getLogger
 
@@ -48,11 +48,15 @@ def local_thread_blocking(fu, timeout = None):
     Decorator which makes a function execute in the local worker thread
     The function will block until return values are available or timeout
     seconds passed.
+    If the current thread is the local worker thread, the function is
+    executed directly.
     
     @param timeout Timeout in seconds 
     """
     def new_fu(*args, **kwargs):
         self = args[0]
+        if current_thread() == self:
+            return fu(*args, **kwargs)
         out = Queue()
         self.message_queue().put((out, fu, args, kwargs))
         ret, ex =  out.get(True, timeout)
