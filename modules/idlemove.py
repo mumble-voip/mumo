@@ -176,6 +176,7 @@ class idlemove(MumoModule):
                     
                 if update:
                     index.add(user.session)
+                    self.affectedusers['origchan' + str(user.userid) + str(user.name) + str(user.session)] = user.channel
                     log.info('%ds > %ds: State transition for user %s (%d/%d) from mute %s -> %s / deaf %s -> %s | channel %d -> %d on server %d',
                              user.idlesecs, threshold, user.name, user.session, user.userid, user.mute, mute, user.deaf, deafen,
                              user.channel, channel, server.id())
@@ -184,7 +185,13 @@ class idlemove(MumoModule):
         if not over_threshold and user.session in self.affectedusers[sid]:
             deafen = False
             mute = False
-            channel = user.channel
+            try:
+                channel = self.affectedusers['origchan' + str(user.userid) + str(user.name) + str(user.session)]
+                del self.affectedusers['origchan' + str(user.userid) + str(user.name) + str(user.session)]
+            except KeyError:
+                channel = user.channel
+                log.warning("User's original channel never stored")
+                pass
             index.remove(user.session)
             log.info("Restore user %s (%d/%d) on server %d", user.name, user.session, user.userid, server.id())
             update = True
