@@ -1,0 +1,7 @@
+dist: bionic
+
+jobs:
+  include:
+    - stage: build docker image
+      script:
+      - bash travis_deploy.sh
