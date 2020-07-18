@@ -2,6 +2,7 @@
 # -*- coding: utf-8
 
 # Copyright (C) 2010-2013 Stefan Hacker <dd0t@users.sourceforge.net>
+# Copyright (C) 2018 Jonas Herzig <me@johni0702.de>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -31,15 +32,16 @@
 
 import os
 import sys
-import Ice
-import IcePy
 import logging
 import tempfile
+import time
+from collections import defaultdict
 from config import (Config,
                     x2bool,
                     commaSeperatedIntegers)
 
-from threading  import Timer
+from worker     import Worker, local_thread, local_thread_blocking
+from threading  import Thread, Timer
 from optparse   import OptionParser
 from logging    import (debug,
                         info,
@@ -64,6 +66,10 @@ default.update({'ice':(('host', str, '127.0.0.1'),
                       ('callback_host', str, '127.0.0.1'),
                       ('callback_port', int, -1)),
 
+                'grpc':(('active', bool, False),
+                      ('host', str, '127.0.0.1'),
+                      ('port', int, 50051)),
+
                'iceraw':None,
                'murmur':(('servers', commaSeperatedIntegers, []),),
                'system':(('pidfile', str, 'mumo.pid'),),
@@ -76,6 +82,7 @@ def load_slice(slice):
     #    This function works around a number of differences between Ice python
     #    versions and distributions when it comes to slice include directories.
     #
+    import Ice
     fallback_slicedirs = ["-I" + sdir for sdir in cfg.ice.slicedirs.split(';')]
 
     if not hasattr(Ice, "getSliceDir"):
@@ -93,6 +100,8 @@ def dynload_slice(prx):
     #
     #--- Dynamically retrieves the slice file from the target server
     #
+    import Ice
+    import IcePy
     info("Loading slice from server")
     try:
         # Check IcePy version as this internal function changes between version.
@@ -128,11 +137,14 @@ def fsload_slice(slice):
     debug("Loading slice from filesystem: %s" % slice)
     load_slice(slice)
 
-def do_main_program():
+def do_ice_main_program():
     #
     #--- Moderator implementation
     #    All of this has to go in here so we can correctly daemonize the tool
     #    without loosing the file descriptors opened by the Ice module
+
+    import Ice
+    import IcePy
 
     debug('Initializing Ice')
     initdata = Ice.InitializationData()
@@ -435,6 +447,28 @@ def do_main_program():
             # (action, user, target_session, target_chanid, current=None)
             self.cb(*(self.ctx + args), **argv)
 
+    class CustomLogger(Ice.Logger):
+        """
+        Logger implementation to pipe Ice log messages into
+        our own log
+        """
+
+        def __init__(self):
+            Ice.Logger.__init__(self)
+            self._log = getLogger('Ice')
+
+        def _print(self, message):
+            self._log.info(message)
+
+        def trace(self, category, message):
+            self._log.debug('Trace %s: %s', category, message)
+
+        def warning(self, message):
+            self._log.warning(message)
+
+        def error(self, message):
+            self._log.error(message)
+
     #
     #--- Start of moderator
     #
@@ -454,27 +488,486 @@ def do_main_program():
     info('Shutdown complete')
     return state
 
-class CustomLogger(Ice.Logger):
+def grpc_connect(host, port):
     """
-    Logger implementation to pipe Ice log messages into
-    our own log
+    Utility function for using/testing the gRPC-Ice bridge from the REPL.
+    Callbacks are not supported when using this function.
+
+    >>> from mumo import grpc_connect
+    >>> meta = grpc_connect('10.137.7.1', 50051)
+    >>> meta.getUptime()
+    146789L
     """
+    import grpc
+    import MurmurRPC_pb2_grpc
 
-    def __init__(self):
-        Ice.Logger.__init__(self)
-        self._log = getLogger('Ice')
+    channel = grpc.insecure_channel('%s:%d' % (host, port))
+    stub = MurmurRPC_pb2_grpc.V1Stub(channel)
 
-    def _print(self, message):
-        self._log.info(message)
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/grpc')
+    import Murmur
 
-    def trace(self, category, message):
-        self._log.debug('Trace %s: %s', category, message)
+    return Murmur.Meta(None, stub)
 
-    def warning(self, message):
-        self._log.warning(message)
+def do_grpc_main_program():
+    debug('Initializing gRPC')
 
-    def error(self, message):
-        self._log.error(message)
+    import grpc
+    import MurmurRPC_pb2
+    import MurmurRPC_pb2_grpc
+    Void = MurmurRPC_pb2.Void()
+
+    info('Connecting to gRPC server (%s:%d)', cfg.grpc.host, cfg.grpc.port)
+    channel = grpc.insecure_channel('%s:%d' % (cfg.grpc.host, cfg.grpc.port))
+    stub = MurmurRPC_pb2_grpc.V1Stub(channel)
+
+    sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/grpc')
+    import Murmur
+
+    class serverListener(Thread):
+        """
+        Reads from a server event stream and forwards events to the app.
+        Note that self.callbacks is owned by the app worker thread and
+        must not be accessed from the outside.
+        """
+        def __init__(self, app, sid):
+            Thread.__init__(self, name='gRPC server event reader %d' % sid)
+            self.daemon = True
+            self.app = app
+            self.sid = sid
+            self.callbacks = []
+            self.shutdown = False
+            self.stream = None
+
+        def run(self):
+            try:
+                server = MurmurRPC_pb2.Server(id=self.sid)
+                self.stream = stub.ServerEvents(server)
+                if self.shutdown:
+                    self.stream.cancel()
+                    return
+                for event in self.stream:
+                    self.app.onServerEvent(self, event)
+            except grpc.RpcError:
+                if not self.shutdown:
+                    raise
+            finally:
+                debug('exiting server listener %d' % self.sid)
+
+        def stop(self):
+            debug('stopping server listener %d' % self.sid)
+            self.shutdown = True
+            if self.stream:
+                self.stream.cancel()
+
+    class contextListener(Thread):
+        """
+        Reads from a context event stream and forwards events to the app.
+        """
+        def __init__(self, app, sid, action):
+            Thread.__init__(self, name='gRPC context event reader %d/"%s"'
+                                       % (sid, action))
+            self.app = app
+            self.sid = sid
+            self.action = action
+            self.shutdown = False
+            self.stream = None
+
+        def run(self):
+            contextAction = MurmurRPC_pb2.ContextAction(
+                    server=MurmurRPC_pb2.Server(id=self.sid),
+                    action=self.action)
+            try:
+                self.stream = stub.ContextActionEvents(contextAction)
+                if self.shutdown:
+                    self.stream.cancel()
+                    return
+                for event in self.stream:
+                    self.app.onContextEvent(self, event)
+            except grpc.RpcError:
+                if not self.shutdown:
+                    raise
+            finally:
+                debug('exiting context listener %d/"%s"'
+                      % (self.sid, self.action))
+
+        def stop(self):
+            debug('stopping context listener %d/"%s"'
+                  % (self.sid, self.action))
+            self.shutdown = True
+            if self.stream:
+                self.stream.cancel()
+
+    class mumoGrpcApp(Worker):
+        def __init__(self, manager):
+            Worker.__init__(self, 'mumo gRPC app')
+            self.manager = manager
+            self.shutdown = False
+            self.stream = None
+            self.connected = False
+            self.metaCallbacks = [metaCallback(self)]
+            # Dict[sid, listener]
+            self.serverListeners = {}
+            # Dict[sid, Dict[session, Dict[action, callback]]]
+            self.contextCallbacks = defaultdict(lambda: defaultdict(dict))
+            # Dict[sid, Dict[action, listener]]
+            self.contextListeners = defaultdict(dict)
+
+            self.meta = Murmur.Meta(self, stub)
+            self.adapter = Murmur.ClientAdapter()
+            self.manager.setClientAdapter(self.adapter)
+
+            self.stream = stub.Events(Void)
+
+            for server in self.meta.getBootedServers():
+                self.ensureListeningOnServer(server)
+
+        def start(self):
+            """
+            Starts the meta event listener and the app worker thread.
+            """
+            thread = Thread(name="gRPC meta event listener",
+                            target=self.mainLoop)
+            thread.daemon = True
+            thread.start()
+            Worker.start(self)
+
+        @local_thread_blocking
+        def stop(self):
+            debug('stopping meta listener / main loop')
+            self.shutdown = True
+            if self.stream:
+                self.stream.cancel()
+            self._cleanupListeners()
+            Worker.stop(self)
+
+        def _cleanupListeners(self):
+            """
+            Cleans up all listeners that are invalid after the connection
+            has been lost.
+            The meta listener is already invalidated when this method
+            is called because it is the one that detects the disconnects.
+            """
+            for listener in self.serverListeners.values():
+                listener.stop()
+            self.serverListeners.clear()
+            for listener in sum([actionMap.values()
+                                 for actionMap
+                                 in self.contextListeners.values()], []):
+                listener.stop()
+            self.contextListeners.clear()
+            self.contextCallbacks.clear()
+
+        def mainLoop(self):
+            while True:
+                self.connected = True
+                self.manager.announceConnected(self.meta)
+                if self.shutdown:
+                    self.stream.cancel()
+                    break
+                try:
+                    for event in self.stream:
+                        if event.type == event.Type.Value('ServerStarted'):
+                            for cb in self.metaCallbacks:
+                                cb.started(event.server.id)
+                        elif event.type == event.Type.Value('ServerStopped'):
+                            for cb in self.metaCallbacks:
+                                cb.stopped(event.server.id)
+                except grpc.RpcError, e:
+                    self.connected = False
+                    self.manager.announceDisconnected()
+                    if self.shutdown:
+                        break
+                    if e.code() in [grpc.StatusCode.UNAVAILABLE,
+                                    grpc.StatusCode.INTERNAL,
+                                    grpc.StatusCode.UNKNOWN]:
+                        exception(e)
+                        self._cleanupListeners()
+                        # try to reconnect
+                        while not self.shutdown:
+                            try:
+                                stub.GetUptime(Void)
+                                break
+                            except grpc.RpcError, e:
+                                exception(e)
+                                time.sleep(10)
+                        self.stream = stub.Events(Void)
+                        for server in self.meta.getBootedServers():
+                            self.ensureListeningOnServer(server)
+                        continue
+                    raise
+            debug('exiting meta listener / main loop')
+
+        def ensureListeningOnServer(self, server):
+            """
+            Ensures that a server event listener for the specified server
+            is running.
+            If this is not the case and the server is enabled in the config,
+            starts a new one.
+            """
+            sid = server.id()
+
+            if sid in self.serverListeners: return
+            if cfg.murmur.servers and sid in cfg.murmur.servers: return
+
+            info('Setting callbacks for virtual server %d', sid)
+
+            listener = serverListener(self, sid)
+            self.serverListeners[sid] = listener
+            listener.start()
+
+            callback = serverCallback(self, self.manager, server, sid)
+            listener.callbacks.append(callback)
+
+        @local_thread
+        def onServerEvent(self, listener, event):
+            if listener.shutdown: return
+            callbacks = listener.callbacks
+            user = Murmur.toIce(event.user)
+            channel = Murmur.toIce(event.channel)
+            message = Murmur.toIce(event.message)
+            if event.type == event.Type.Value('UserConnected'):
+                for cb in callbacks: cb.userConnected(user)
+            elif event.type == event.Type.Value('UserDisconnected'):
+                for cb in callbacks: cb.userDisconnected(user)
+            elif event.type == event.Type.Value('UserStateChanged'):
+                for cb in callbacks: cb.userStateChanged(user)
+            elif event.type == event.Type.Value('UserTextMessage'):
+                for cb in callbacks: cb.userTextMessage(user, message)
+            elif event.type == event.Type.Value('ChannelCreated'):
+                for cb in callbacks: cb.channelCreated(channel)
+            elif event.type == event.Type.Value('ChannelRemoved'):
+                for cb in callbacks: cb.channelRemoved(channel)
+            elif event.type == event.Type.Value('ChannelStateChanged'):
+                for cb in callbacks: cb.channelStateChanged(channel)
+
+        @local_thread
+        def onContextEvent(self, listener, event):
+            if listener.shutdown: return
+
+            sid = listener.sid
+            action = listener.action
+            session = event.actor.session
+
+            if sid not in self.contextCallbacks: return
+            if session not in self.contextCallbacks[sid]: return
+            if action not in self.contextCallbacks[sid][session]: return
+            cb = self.contextCallbacks[sid][session][action]
+
+            if event.actor is None: return
+            user = Murmur.Server(self, stub, sid).getState(session)
+
+            try:
+                cb.contextAction(action, user,
+                                 event.user.session if event.user else 0,
+                                 event.channel.id if event.channel else -1)
+            except:
+                exception('Exception in context action callback:')
+                self.removeContextCallback(sid, cb)
+
+        @local_thread_blocking
+        def addContextCallback(self, contextAction, cb):
+            stub.ContextActionAdd(contextAction)
+
+            session = contextAction.user.session
+            sid = contextAction.server.id
+            action = contextAction.action
+
+            if action not in self.contextListeners[sid]:
+                listener = contextListener(self, sid, action)
+                listener.start()
+                self.contextListeners[sid][action] = listener
+            else:
+                listener = self.contextListeners[sid][action]
+
+            self.contextCallbacks[sid][session][action] = cb
+
+        @local_thread_blocking
+        def removeContextCallback(self, sid, cb):
+            actions = []
+            for session, actionMap in self.contextCallbacks[sid].iteritems():
+                for action, lcb in actionMap.iteritems():
+                    if lcb == cb:
+                        actions.append(action)
+
+            for action in actions:
+                if action not in self.contextListeners[sid]:
+                    continue
+
+                self.contextListeners[sid][action].stop()
+                del self.contextListeners[sid][action]
+
+                try:
+                    stub.ContextActionRemove(MurmurRPC_pb2.ContextAction(
+                        server=MurmurRPC_pb2.Server(id=sid),
+                        action=action))
+                except grpc.RpcError:
+                    pass
+
+                for session, actionMap in self.contextCallbacks[sid].iteritems():
+                    if action in actionMap:
+                        del actionMap[action]
+
+        @local_thread_blocking
+        def onServerStop(self, sid):
+            for listener in self.contextListeners[sid].values():
+                listener.stop()
+            del self.contextListeners[sid]
+            del self.contextCallbacks[sid]
+
+            self.app.serverListeners[sid].stop()
+            del self.app.serverListeners[sid]
+
+        @local_thread_blocking
+        def onUserDisconnect(self, sid, session):
+            actions = set(self.contextCallbacks[sid][session])
+            del self.contextCallbacks[sid][session]
+
+            stillInUse = set().intersection(
+                    *map(set, self.contextCallbacks[sid].values()))
+
+            for action in actions - stillInUse:
+                if action in self.contextListeners[sid]:
+                    self.contextListeners[sid][action].stop()
+                    del self.contextListeners[sid][action]
+
+    def fortifyGrpcFu(retval=None, exceptions=(grpc.RpcError,)):
+        """
+        Decorator that catches exceptions,logs them and returns a safe retval
+        value. This helps to prevent getting stuck in
+        critical code paths. Only exceptions that are instances of classes
+        given in the exceptions list are not caught.
+
+        The default is to catch all non-gRPC exceptions.
+        """
+        def newdec(func):
+            def newfunc(*args, **kws):
+                try:
+                    return func(*args, **kws)
+                except Exception, e:
+                    catch = True
+                    for ex in exceptions:
+                        if isinstance(e, ex):
+                            catch = False
+                            break
+
+                    if catch:
+                        critical('Unexpected exception caught')
+                        exception(e)
+                        return retval
+                    raise
+
+            return newfunc
+        return newdec
+
+    class metaCallback(Murmur.MetaCallback):
+        def __init__(self, app):
+            Murmur.MetaCallback.__init__(self)
+            self.app = app
+
+        @fortifyGrpcFu()
+        def started(self, server, current=None):
+            """
+            This function is called when a virtual server is started
+            and makes sure the callbacks get attached if needed.
+            """
+            self.app.ensureListeningOnServer(server)
+
+            sid = server.id()
+            self.app.manager.announceMeta(sid, "started", server, current)
+
+        @fortifyGrpcFu()
+        def stopped(self, server, current=None):
+            """
+            This function is called when a virtual server is stopped
+            """
+            if self.app.connected:
+                # Only try to output the server id if we think we are still
+                # connected to prevent flooding of our thread pool
+                sid = server.id()
+                if sid in self.app.serverListeners:
+                    info('Watched virtual server %d got stopped', sid)
+                    self.app.onServerStop(sid)
+                else:
+                    debug('Virtual server %d got stopped', sid)
+                self.app.manager.announceMeta(sid, "stopped", server, current)
+                return
+
+            debug('Server shutdown stopped a virtual server')
+
+    def forwardServer(fu):
+        def new_fu(self, *args, **kwargs):
+            self.manager.announceServer(self.sid, fu.__name__, self.server,
+                                        *args, **kwargs)
+            fu(self, *args, **kwargs)
+        return new_fu
+
+    class serverCallback(Murmur.ServerCallback):
+        def __init__(self, app, manager, server, sid):
+            Murmur.ServerCallback.__init__(self)
+            self.app = app
+            self.manager = manager
+            self.sid = sid
+            self.server = server
+
+        @forwardServer
+        def userDisconnected(self, u, current=None):
+            self.app.onUserDisconnect(self.sid, u.session)
+
+        @forwardServer
+        def userStateChanged(self, u, current=None): pass
+
+        @forwardServer
+        def userConnected(self, u, current=None): pass
+
+        @forwardServer
+        def channelCreated(self, c, current=None): pass
+
+        @forwardServer
+        def channelRemoved(self, c, current=None): pass
+
+        @forwardServer
+        def channelStateChanged(self, c, current=None): pass
+
+        @forwardServer
+        def userTextMessage(self, u, m, current=None): pass
+
+    class customContextCallback(Murmur.ServerContextCallback):
+        def __init__(self, contextActionCallback, *ctx):
+            Murmur.ServerContextCallback.__init__(self)
+            self.cb = contextActionCallback
+            self.ctx = ctx
+
+        def contextAction(self, *args, **argv):
+            # (action, user, target_session, target_chanid, current=None)
+            self.cb(*(self.ctx + args), **argv)
+
+    #
+    # --- Start of moderator
+    #
+    info('Starting mumble moderator')
+    debug('Initializing manager')
+    manager = MumoManager(Murmur, customContextCallback)
+    manager.start()
+    manager.loadModules()
+    manager.startModules()
+
+    debug("Initializing mumoGrpcApp")
+    app = mumoGrpcApp(manager)
+    app.start()
+
+    while True:
+        try:
+            time.sleep(1)
+        except KeyboardInterrupt:
+            warning('Caught interrupt, shutting down')
+            break
+
+    manager.stopModules()
+    manager.stop()
+    app.stop()
+    info('Shutdown complete')
+    return True
 
 #
 #--- Start of program
@@ -542,7 +1035,10 @@ if __name__ == '__main__':
             print >> sys.stderr, 'Fatal error, could not daemonize process due to missing "daemon" library, ' \
             'please install the missing dependency and restart the application'
             sys.exit(1)
-        ret = do_main_program()
+        if cfg.grpc.active:
+            ret = do_grpc_main_program()
+        else:
+            ret = do_ice_main_program()
     else:
         pidfile = TimeoutPIDLockFile(cfg.system.pidfile, 5)
         if pidfile.is_locked():
@@ -559,7 +1055,10 @@ if __name__ == '__main__':
                                        pidfile=pidfile)
         context.__enter__()
         try:
-            ret = do_main_program()
+            if cfg.grpc.active:
+                ret = do_grpc_main_program()
+            else:
+                ret = do_ice_main_program()
         finally:
             context.__exit__(None, None, None)
     sys.exit(ret)
