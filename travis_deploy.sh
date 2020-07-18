@@ -8,6 +8,6 @@ docker build -t mumo .
 docker images
 
 if [ "${TRAVIS_PULL_REQUEST}" == "false" ]; then
-  docker tag mumo $DOCKER_USERNAME/mumo
-  docker push $DOCKER_USERNAME/mumo
+  docker tag mumo mumblevoip/mumo
+  docker push mumblevoip/mumo
 fi
