@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8
 
 # Copyright (C) 2010-2011 Stefan Hacker <dd0t@users.sourceforge.net>
@@ -37,45 +37,41 @@
 # once they become active again
 #
 
-from mumo_module import (commaSeperatedIntegers,
-                         commaSeperatedBool,
-                         commaSeperatedStrings,
-                         MumoModule)
-
-from threading import Timer
 import re
+from threading import Timer
 
-
+from config import commaSeperatedIntegers, commaSeperatedBool, commaSeperatedStrings
+from mumo_module import MumoModule
 
 
 class idlemove(MumoModule):
-    default_config = {'idlemove':(
-                             ('interval', float, 0.1),
-                             ('servers', commaSeperatedIntegers, []),
-                             ),
-                      lambda x: re.match('(all)|(server_\d+)', x):(
-                             ('threshold', commaSeperatedIntegers, [3600]),
-                             ('mute', commaSeperatedBool, [True]),
-                             ('deafen', commaSeperatedBool, [False]),
-                             ('channel', commaSeperatedIntegers, [1]),
-                             ('source_channel', commaSeperatedIntegers, [-1]),
-                             ('whitelist', commaSeperatedStrings, []),
-                             ('channel_whitelist', commaSeperatedIntegers, [])
-                             ),
-                    }
-    
+    default_config = {'idlemove': (
+        ('interval', float, 0.1),
+        ('servers', commaSeperatedIntegers, []),
+    ),
+        lambda x: re.match('(all)|(server_\d+)', x): (
+            ['threshold', commaSeperatedIntegers, [3600]],
+            ('mute', commaSeperatedBool, [True]),
+            ('deafen', commaSeperatedBool, [False]),
+            ('channel', commaSeperatedIntegers, [1]),
+            ('source_channel', commaSeperatedIntegers, [-1]),
+            ('whitelist', commaSeperatedStrings, []),
+            ('channel_whitelist', commaSeperatedIntegers, [])
+        ),
+    }
+
     def __init__(self, name, manager, configuration=None):
         MumoModule.__init__(self, name, manager, configuration)
         self.murmur = manager.getMurmurModule()
         self.watchdog = None
 
     def connected(self):
-        self.affectedusers = {} # {serverid:set(sessionids,...)}
+        self.affectedusers = {}  # {serverid:set(sessionids,...)}
 
         manager = self.manager()
         log = self.log()
         log.debug("Register for Meta & Server callbacks")
-        
+
         cfg = self.cfg()
         servers = cfg.idlemove.servers
         if not servers:
@@ -83,11 +79,11 @@ class idlemove(MumoModule):
 
         manager.subscribeServerCallbacks(self, servers)
         manager.subscribeMetaCallbacks(self, servers)
-        
+
         if not self.watchdog:
             self.watchdog = Timer(cfg.idlemove.interval, self.handleIdleMove)
             self.watchdog.start()
-    
+
     def disconnected(self):
         self.affectedusers = {}
         if self.watchdog:
@@ -98,58 +94,55 @@ class idlemove(MumoModule):
         cfg = self.cfg()
         try:
             meta = self.manager().getMeta()
-            
+
             if not cfg.idlemove.servers:
                 servers = meta.getBootedServers()
             else:
                 servers = [meta.getServer(server) for server in cfg.idlemove.servers]
-            
+
             for server in servers:
-                if not server: continue
-                
                 if server:
-                    for user in server.getUsers().itervalues():
-                            self.UpdateUserAutoAway(server, user)
+                    for user in server.getUsers().values():
+                        self.UpdateUserAutoAway(server, user)
         finally:
             # Renew the timer
             self.watchdog = Timer(cfg.idlemove.interval, self.handleIdleMove)
             self.watchdog.start()
-                        
+
     def UpdateUserAutoAway(self, server, user):
         log = self.log()
         sid = server.id()
-        
+
         try:
             scfg = getattr(self.cfg(), 'server_%d' % sid)
         except AttributeError:
             scfg = self.cfg().all
-        
+
         try:
             index = self.affectedusers[sid]
         except KeyError:
             self.affectedusers[sid] = set()
             index = self.affectedusers[sid]
-        
+
         # Check if the user is whitelisted
         if user.name in scfg.whitelist:
             return
 
         # Remember values so we can see changes later
-        threshold = None
         mute = user.mute
         deafen = user.deaf
         channel = user.channel
-        
+
         update = False
         over_threshold = False
-        
+
         # Search all our stages top down for a violated treshold and pick the first
         for i in range(len(scfg.threshold) - 1, -1, -1):
             try:
                 source_channel = scfg.source_channel[i]
             except IndexError:
                 source_channel = -1
-                
+
             try:
                 threshold = scfg.threshold[i]
                 mute = scfg.mute[i]
@@ -159,28 +152,27 @@ class idlemove(MumoModule):
                 log.warning("Incomplete configuration for stage %d of server %i, ignored", i, server.id())
                 continue
 
-            if user.idlesecs > threshold and\
-                user.channel not in scfg.channel_whitelist and\
-                (source_channel == -1 or\
-                 user.channel == source_channel or\
-                 user.channel == channel):
-                
+            if user.idlesecs > threshold and user.channel not in scfg.channel_whitelist and (
+                    source_channel == -1 or user.channel == source_channel or user.channel == channel):
+
                 over_threshold = True
                 # Update if state changes needed
                 if user.deaf != deafen:
                     update = True
                 if user.mute != mute:
                     update = True
-                if channel >= 0 and user.channel != channel:
+                if 0 <= channel != user.channel:
                     update = True
-                    
+
                 if update:
                     index.add(user.session)
-                    log.info('%ds > %ds: State transition for user %s (%d/%d) from mute %s -> %s / deaf %s -> %s | channel %d -> %d on server %d',
-                             user.idlesecs, threshold, user.name, user.session, user.userid, user.mute, mute, user.deaf, deafen,
-                             user.channel, channel, server.id())
+                    log.info(
+                        '%ds > %ds: State transition for user %s (%d/%d) from mute %s -> %s / deaf %s -> %s | channel %d -> %d on server %d',
+                        user.idlesecs, threshold, user.name, user.session, user.userid, user.mute, mute, user.deaf,
+                        deafen,
+                        user.channel, channel, server.id())
                 break
-        
+
         if not over_threshold and user.session in self.affectedusers[sid]:
             deafen = False
             mute = False
@@ -188,15 +180,15 @@ class idlemove(MumoModule):
             index.remove(user.session)
             log.info("Restore user %s (%d/%d) on server %d", user.name, user.session, user.userid, server.id())
             update = True
-            
+
         if update:
             user.deaf = deafen
             user.mute = mute
             user.channel = channel
             server.setState(user)
-            
+
     #
-    #--- Server callback functions
+    # --- Server callback functions
     #
     def userDisconnected(self, server, state, context=None):
         try:
@@ -205,27 +197,35 @@ class idlemove(MumoModule):
                 index.remove(state.session)
         except KeyError:
             pass
-            
+
     def userStateChanged(self, server, state, context=None):
         self.UpdateUserAutoAway(server, state)
-        
-    def userConnected(self, server, state, context=None): pass # Unused callbacks
-    def userTextMessage(self, server, user, message, current=None): pass
-    def channelCreated(self, server, state, context=None): pass
-    def channelRemoved(self, server, state, context=None): pass
-    def channelStateChanged(self, server, state, context=None): pass
+
+    def userConnected(self, server, state, context=None):
+        pass  # Unused callbacks
+
+    def userTextMessage(self, server, user, message, current=None):
+        pass
+
+    def channelCreated(self, server, state, context=None):
+        pass
+
+    def channelRemoved(self, server, state, context=None):
+        pass
+
+    def channelStateChanged(self, server, state, context=None):
+        pass
 
     #
-    #--- Meta callback functions
+    # --- Meta callback functions
     #
-    
-    def started(self, server, context = None):
+
+    def started(self, server, context=None):
         sid = server.id()
         self.affectedusers[sid] = set()
         self.log().debug('Handling server %d', sid)
-    
-    def stopped(self, server, context = None):
+
+    def stopped(self, server, context=None):
         sid = server.id()
         self.affectedusers[sid] = set()
         self.log().debug('Server %d gone', sid)
-

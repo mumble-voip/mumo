@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8
 
 # Copyright (C) 2013 Stefan Hacker <dd0t@users.sourceforge.net>
@@ -31,51 +31,55 @@
 
 import unittest
 
-from users import User, UserRegistry
+from .users import User, UserRegistry
+
 
 class Test(unittest.TestCase):
 
-    def getSomeUsers(self, n =5):
-        sid = []; session = []; user = []
+    def getSomeUsers(self, n=5):
+        sid = []
+        session = []
+        user = []
         for i in range(n):
-            s=str(i)
-            sid.append(i) ; session.append(i)
-            user.append(User("state"+s, "identity"+s, "game"+s, "server"+s))
-            
+            s = str(i)
+            sid.append(i)
+            session.append(i)
+            user.append(User("state" + s, "identity" + s, "game" + s, "server" + s))
+
         return sid, session, user
 
     def testRegistryCRUDOps(self):
         r = UserRegistry()
-        
+
         sid, session, user = self.getSomeUsers()
-        
+
         # Create & Read
         self.assertTrue(r.add(sid[0], session[0], user[0]))
         self.assertFalse(r.add(sid[0], session[0], user[0]))
         self.assertEqual(r.get(sid[0], session[0]), user[0])
-        
+
         self.assertTrue(r.addOrUpdate(sid[1], session[1], user[1]))
         self.assertEqual(r.get(sid[1], session[1]), user[1])
-        
+
         # Update
         self.assertTrue(r.addOrUpdate(sid[0], session[0], user[2]))
         self.assertEqual(r.get(sid[0], session[0]), user[2])
-        
+
         # Delete
         self.assertTrue(r.remove(sid[1], session[1]))
         self.assertFalse(r.remove(sid[1], session[1]))
         self.assertEqual(r.get(sid[1], session[1]), None)
-        
+
         self.assertTrue(r.remove(sid[0], session[0]))
         self.assertFalse(r.remove(sid[0], session[0]))
         self.assertEqual(r.get(sid[0], session[0]), None)
-        
+
     def testUser(self):
-        u = User("State", {'team':2} , "tf", "Someserver")
+        u = User("State", {'team': 2}, "tf", "Someserver")
         self.assertTrue(u.valid())
         self.assertFalse(User("State").valid())
 
 
 if __name__ == "__main__":
-    #import sys;sys.argv = ['', 'Test.testName']
+    # import sys;sys.argv = ['', 'Test.testName']
     unittest.main()

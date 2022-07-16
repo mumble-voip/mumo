@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8
 
 # Copyright (C) 2010 Stefan Hacker <dd0t@users.sourceforge.net>
@@ -30,15 +30,7 @@
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 if __name__ == "__main__":
-    import unittest
-    
-    from worker_test import *
-    from config_test import *
-    from mumo_manager_test import *
-    
-    from modules.source.source_test import *
-    from modules.source.users_test import *
     from modules.source.db_test import *
 
-    #import sys;sys.argv = ['', 'Test.testName']
+    # import sys;sys.argv = ['', 'Test.testName']
     unittest.main()

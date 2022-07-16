@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8
 
 # Copyright (C) 2010 Stefan Hacker <dd0t@users.sourceforge.net>
@@ -29,73 +29,70 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from config import (Config,
-                    x2bool,
-                    commaSeperatedIntegers,
-                    commaSeperatedStrings,
-                    commaSeperatedBool)
+from config import (Config)
 
 from worker import Worker
 
+
 class MumoModule(Worker):
     default_config = {}
-    
-    def __init__(self, name, manager, configuration = None):
+
+    def __init__(self, name, manager, configuration=None):
         Worker.__init__(self, name, manager.getQueue())
         self.__manager = manager
-        
-        if isinstance(configuration, basestring):
+
+        if isinstance(configuration, str):
             # If we are passed a string expect a config file there
             if configuration:
                 self.__cfg = Config(configuration, self.default_config)
             elif self.default_config:
-                self.__cfg = Config(default = self.default_config)
+                self.__cfg = Config(default=self.default_config)
             else:
                 self.__cfg = None
         else:
             # If we aren't passed a string it will be a config object or None
             self.__cfg = configuration
-            
+
         self.log().info("Initialized")
 
-    #--- Accessors
+    # --- Accessors
     def manager(self):
         return self.__manager
-    
+
     def cfg(self):
         return self.__cfg
-    
-    #--- Module control
-    
-    
+
+    # --- Module control
+
     def onStart(self):
         self.log().info("Start")
-    
+
     def onStop(self):
         self.log().info("Stop")
-    
-    #--- Events
-    
+
+    # --- Events
+
     def connected(self):
         # Called once the Ice connection to the murmur server
         # is established.
         # 
         # All event registration should happen here 
-        
+
         pass
-    
+
     def disconnected(self):
         # Called once a loss of Ice connectivity is detected.
         #
-        
+
         pass
-    
-    
+
+
 def logModFu(fu):
     def new_fu(self, *args, **kwargs):
         log = self.log()
-        argss = '' if len(args)==0 else ',' + ','.join(['"%s"' % str(arg) for arg in args])
-        kwargss = '' if len(kwargs)==0 else ','.join('%s="%s"' % (kw, str(arg)) for kw, arg in kwargs.iteritems())
+        argss = '' if len(args) == 0 else ',' + ','.join(['"%s"' % str(arg) for arg in args])
+        kwargss = '' if len(kwargs) == 0 else ','.join('%s="%s"' % (kw, str(arg)) for kw, arg in kwargs.items())
         log.debug("%s(%s%s%s)", fu.__name__, str(self), argss, kwargss)
         return fu(self, *args, **kwargs)
+
     return new_fu

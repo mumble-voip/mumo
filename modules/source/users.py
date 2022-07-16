@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8
 
 # Copyright (C) 2013 Stefan Hacker <dd0t@users.sourceforge.net>
@@ -34,31 +34,32 @@ class User(object):
     User to hold state as well as parsed data fields in a
     sane fashion.
     """
+
     def __init__(self, state, identity=None, game=None, server=None):
         self.state = state
         self.identity = identity or {}
         self.server = server
         self.game = game
-        
+
     def valid(self):
         """
         True if valid data is available for all fields
         """
         return self.state and self.identity and self.server and self.game
-    
+
     def hasContextOrIdentityChanged(self, otherstate):
         """
         Checks whether the given state diverges from this users's
         """
         return self.state.context != otherstate.context or \
-               self.state.identity != otherstate.identity 
-               
+               self.state.identity != otherstate.identity
+
     def updateState(self, state):
         """
         Updates the state of this user
         """
         self.state = state
-        
+
     def updateData(self, identity, game, server):
         """
         Updates the data fields for this user
@@ -66,16 +67,17 @@ class User(object):
         self.identity = identity
         self.game = game
         self.server = server
-        
+
+
 class UserRegistry(object):
     """
     Registry to store User objects for given servers
     and sessions.
     """
-    
+
     def __init__(self):
-        self.users = {} # {session:user, ...}
-    
+        self.users = {}  # {session:user, ...}
+
     def get(self, sid, session):
         """
         Return user or None from registry
@@ -84,34 +86,34 @@ class UserRegistry(object):
             return self.users[sid][session]
         except KeyError:
             return None
-        
+
     def add(self, sid, session, user):
         """
         Add new user to registry
         """
-        assert(isinstance(user, User))
-        
+        assert (isinstance(user, User))
+
         if not sid in self.users:
-            self.users[sid] = {session:user}
+            self.users[sid] = {session: user}
         elif not session in self.users[sid]:
             self.users[sid][session] = user
         else:
             return False
         return True
-    
+
     def addOrUpdate(self, sid, session, user):
         """
         Add user or overwrite existing one (identified by sid + session)
         """
-        assert(isinstance(user, User))
-        
+        assert (isinstance(user, User))
+
         if not sid in self.users:
-            self.users[sid] = {session:user}
+            self.users[sid] = {session: user}
         else:
             self.users[sid][session] = user
-            
+
         return True
-    
+
     def remove(self, sid, session):
         """
         Remove user from registry
@@ -120,15 +122,14 @@ class UserRegistry(object):
             del self.users[sid][session]
         except KeyError:
             return False
-        return True  
-    
+        return True
+
     def usingChannel(self, sid, cid):
         """
         Return true if any user in the registry is occupying the given channel
         """
-        for user in self.users[sid].itervalues():
+        for user in self.users[sid].values():
             if user.state and user.state.channel == cid:
                 return True
-        
-        return False
 
+        return False

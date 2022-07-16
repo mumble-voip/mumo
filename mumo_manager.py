@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8
 
 # Copyright (C) 2010 Stefan Hacker <dd0t@users.sourceforge.net>
@@ -29,31 +29,37 @@
 # NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 # SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import Queue
-from worker import Worker, local_thread, local_thread_blocking
-from config import Config
-import sys
 import os
+import queue
+import sys
 import uuid
+
+from config import Config
+from worker import Worker, local_thread, local_thread_blocking
+
 
 class FailedLoadModuleException(Exception):
     pass
 
+
 class FailedLoadModuleConfigException(FailedLoadModuleException):
     pass
+
 
 class FailedLoadModuleImportException(FailedLoadModuleException):
     pass
 
+
 class FailedLoadModuleInitializationException(FailedLoadModuleException):
     pass
 
-def debug_log(enable = True):
+
+def debug_log(enable=True):
     def new_dec(fu):
         def new_fu(*args, **kwargs):
             self = args[0]
             log = self.log()
-            skwargs = ','.join(['%s=%s' % (karg,repr(arg)) for karg, arg in kwargs])
+            skwargs = ','.join(['%s=%s' % (karg, repr(arg)) for karg, arg in kwargs])
             sargs = ','.join([str(arg) for arg in args[1:]]) + '' if not skwargs else (',' + str(skwargs))
 
             call = "%s(%s)" % (fu.__name__, sargs)
@@ -61,12 +67,14 @@ def debug_log(enable = True):
             res = fu(*args, **kwargs)
             log.debug("%s -> %s", call, repr(res))
             return res
+
         return new_fu if enable else fu
+
     return new_dec
 
 
-
 debug_me = True
+
 
 class MumoManagerRemote(object):
     """
@@ -76,7 +84,7 @@ class MumoManagerRemote(object):
     as do other signaling to the master MumoManager.
     """
 
-    SERVERS_ALL = [-1] ## Applies to all servers
+    SERVERS_ALL = [-1]  ## Applies to all servers
 
     def __init__(self, master, name, queue):
         self.__master = master
@@ -88,7 +96,7 @@ class MumoManagerRemote(object):
     def getQueue(self):
         return self.__queue
 
-    def subscribeMetaCallbacks(self, handler, servers = SERVERS_ALL):
+    def subscribeMetaCallbacks(self, handler, servers=SERVERS_ALL):
         """
         Subscribe to meta callbacks. Subscribes the given handler to the following
         callbacks:
@@ -102,7 +110,7 @@ class MumoManagerRemote(object):
         """
         return self.__master.subscribeMetaCallbacks(self.__queue, handler, servers)
 
-    def unsubscribeMetaCallbacks(self, handler, servers = SERVERS_ALL):
+    def unsubscribeMetaCallbacks(self, handler, servers=SERVERS_ALL):
         """
         Unsubscribe from meta callbacks. Unsubscribes the given handler from callbacks
         for the given servers.
@@ -113,7 +121,7 @@ class MumoManagerRemote(object):
         """
         return self.__master.unscubscribeMetaCallbacks(self.__queue, handler, servers)
 
-    def subscribeServerCallbacks(self, handler, servers = SERVERS_ALL):
+    def subscribeServerCallbacks(self, handler, servers=SERVERS_ALL):
         """
         Subscribe to server callbacks. Subscribes the given handler to the following
         callbacks:
@@ -131,7 +139,7 @@ class MumoManagerRemote(object):
         """
         return self.__master.subscribeServerCallbacks(self.__queue, handler, servers)
 
-    def unsubscribeServerCallbacks(self, handler, servers = SERVERS_ALL):
+    def unsubscribeServerCallbacks(self, handler, servers=SERVERS_ALL):
         """
         Unsubscribe from server callbacks. Unsubscribes the given handler from callbacks
         for the given servers.
@@ -171,7 +179,8 @@ class MumoManagerRemote(object):
         @param action: Action identifier passed to your callback (see above)
         @param text: Text for the menu entry
         @param handler: Handler function to call when the menu item is used
-        @param context: Contexts to show entry in (can be a combination of ContextServer, ContextChannel and ContextUser)
+        @param context: Contexts to show entry in (can be a combination of ContextServer, ContextChannel and
+        ContextUser)
         """
 
         server_actions = self.__context_callbacks.get(server.id())
@@ -240,22 +249,22 @@ class MumoManagerRemote(object):
 class MumoManager(Worker):
     MAGIC_ALL = -1
 
-    cfg_default = {'modules':(('mod_dir', str, "modules/"),
-                              ('cfg_dir', str, "modules-enabled/"),
-                              ('timeout', int, 2))}
+    cfg_default = {'modules': (('mod_dir', str, "modules/"),
+                               ('cfg_dir', str, "modules-enabled/"),
+                               ('timeout', int, 2))}
 
-    def __init__(self, murmur, context_callback_type, cfg = Config(default = cfg_default)):
+    def __init__(self, murmur, context_callback_type, cfg=Config(default=cfg_default)):
         Worker.__init__(self, "MumoManager")
-        self.queues = {} # {queue:module}
-        self.modules = {} # {name:module}
-        self.imports = {} # {name:import}
+        self.queues = {}  # {queue:module}
+        self.modules = {}  # {name:module}
+        self.imports = {}  # {name:import}
         self.cfg = cfg
 
         self.murmur = murmur
         self.meta = None
         self.client_adapter = None
 
-        self.metaCallbacks = {} # {sid:{queue:[handler]}}
+        self.metaCallbacks = {}  # {sid:{queue:[handler]}}
         self.serverCallbacks = {}
 
         self.context_callback_type = context_callback_type
@@ -279,13 +288,13 @@ class MumoManager(Worker):
                 else:
                     mdict[server][queue] = [handler]
             else:
-                mdict[server] = {queue:[handler]}
+                mdict[server] = {queue: [handler]}
 
     def __rem_from_dict(self, mdict, queue, handler, servers):
         for server in servers:
             try:
                 mdict[server][queue].remove(handler)
-            except KeyError, ValueError:
+            except KeyError as ValueError:
                 pass
 
     def __announce_to_dict(self, mdict, server, function, *args, **kwargs):
@@ -302,13 +311,13 @@ class MumoManager(Worker):
 
         # Announce to all handlers of the given serverlist
         if server == self.MAGIC_ALL:
-            servers = mdict.iterkeys()
+            servers = iter(mdict.keys())
         else:
             servers = [self.MAGIC_ALL, server]
 
         for server in servers:
             try:
-                for queue, handlers in mdict[server].iteritems():
+                for queue, handlers in mdict[server].items():
                     for handler in handlers:
                         self.__call_remote(queue, handler, function, *args, **kwargs)
             except KeyError:
@@ -317,31 +326,31 @@ class MumoManager(Worker):
 
     def __call_remote(self, queue, handler, function, *args, **kwargs):
         try:
-            func = getattr(handler, function) # Find out what to call on target
+            func = getattr(handler, function)  # Find out what to call on target
             queue.put((None, func, args, kwargs))
-        except AttributeError, e:
+        except AttributeError as e:
             mod = self.queues.get(queue, None)
             myname = ""
-            for name, mymod in self.modules.iteritems():
+            for name, mymod in self.modules.items():
                 if mod == mymod:
                     myname = name
             if myname:
-                self.log().error("Handler class registered by module '%s' does not handle function '%s'. Call failed.", myname, function)
+                self.log().error("Handler class registered by module '%s' does not handle function '%s'. Call failed.",
+                                 myname, function)
             else:
                 self.log().exception(e)
 
-
     #
-    #-- Module multiplexing functionality
+    # -- Module multiplexing functionality
     #
 
     @local_thread
-    def announceConnected(self, meta = None):
+    def announceConnected(self, meta=None):
         """
         Call connected handler on all handlers
         """
         self.meta = meta
-        for queue, module in self.queues.iteritems():
+        for queue, module in self.queues.items():
             self.__call_remote(queue, module, "connected")
 
     @local_thread
@@ -349,7 +358,7 @@ class MumoManager(Worker):
         """
         Call disconnected handler on all handlers
         """
-        for queue, module in self.queues.iteritems():
+        for queue, module in self.queues.items():
             self.__call_remote(queue, module, "disconnected")
 
     @local_thread
@@ -377,7 +386,7 @@ class MumoManager(Worker):
         self.__announce_to_dict(self.serverCallbacks, server, function, *args, **kwargs)
 
     #
-    #--- Module self management functionality
+    # --- Module self management functionality
     #
 
     @local_thread
@@ -439,11 +448,11 @@ class MumoManager(Worker):
         """
         return self.meta
 
-    #--- Module load/start/stop/unload functionality
+    # --- Module load/start/stop/unload functionality
     #
     @local_thread_blocking
     @debug_log(debug_me)
-    def loadModules(self, names = None):
+    def loadModules(self, names=None):
         """
         Loads a list of modules from the mumo directory structure by name.
 
@@ -469,30 +478,30 @@ class MumoManager(Worker):
         for name in names:
             try:
                 modinst = self._loadModule_noblock(name)
-                loadedmodules[name] =  modinst
+                loadedmodules[name] = modinst
             except FailedLoadModuleException:
                 pass
 
         return loadedmodules
 
     @local_thread_blocking
-    def loadModuleCls(self, name, modcls, module_cfg = None):
+    def loadModuleCls(self, name, modcls, module_cfg=None):
         return self._loadModuleCls_noblock(name, modcls, module_cfg)
 
     @debug_log(debug_me)
-    def _loadModuleCls_noblock(self, name, modcls, module_cfg = None):
+    def _loadModuleCls_noblock(self, name, modcls, module_cfg=None):
         log = self.log()
 
         if name in self.modules:
             log.error("Module '%s' already loaded", name)
             return
 
-        modqueue = Queue.Queue()
+        modqueue = queue.Queue()
         modmanager = MumoManagerRemote(self, name, modqueue)
 
         try:
             modinst = modcls(name, modmanager, module_cfg)
-        except Exception, e:
+        except Exception as e:
             msg = "Module '%s' failed to initialize" % name
             log.error(msg)
             log.exception(e)
@@ -543,14 +552,14 @@ class MumoManager(Worker):
         try:
             mod = __import__(name)
             self.imports[name] = mod
-        except ImportError, e:
+        except ImportError as e:
             msg = "Failed to import module '%s', reason: %s" % (name, str(e))
             log.error(msg)
             raise FailedLoadModuleImportException(msg)
 
         try:
             try:
-                modcls = mod.mumo_module_class # First check if there's a magic mumo_module_class variable
+                modcls = mod.mumo_module_class  # First check if there's a magic mumo_module_class variable
                 log.debug("Magic mumo_module_class found")
             except AttributeError:
                 modcls = getattr(mod, name)
@@ -563,7 +572,7 @@ class MumoManager(Worker):
 
     @local_thread_blocking
     @debug_log(debug_me)
-    def startModules(self, names = None):
+    def startModules(self, names=None):
         """
         Start a module by name
 
@@ -575,12 +584,12 @@ class MumoManager(Worker):
 
         if not names:
             # If no names are given start all models
-            names = self.modules.iterkeys()
+            names = iter(self.modules.keys())
 
         for name in names:
             try:
                 modinst = self.modules[name]
-                if not modinst.isAlive():
+                if not modinst.is_alive():
                     modinst.start()
                     log.debug("Module '%s' started", name)
                 else:
@@ -593,7 +602,7 @@ class MumoManager(Worker):
 
     @local_thread_blocking
     @debug_log(debug_me)
-    def stopModules(self, names = None, force = False):
+    def stopModules(self, names=None, force=False):
         """
         Stop a list of modules by name. Note that this only works
         for well behaved modules. At this point if a module is really going
@@ -608,7 +617,7 @@ class MumoManager(Worker):
 
         if not names:
             # If no names are given start all models
-            names = self.modules.iterkeys()
+            names = iter(self.modules.keys())
 
         for name in names:
             try:
@@ -620,29 +629,29 @@ class MumoManager(Worker):
 
         if force:
             # We will have to drain the modules queues
-            for queue, module in self.queues.iteritems():
+            for queue, module in self.queues.items():
                 if module in self.modules:
                     try:
                         while queue.get_nowait(): pass
-                    except Queue.Empty: pass
+                    except queue.Empty:
+                        pass
 
-        for modinst in stoppedmodules.itervalues():
-            if modinst.isAlive():
+        for modinst in stoppedmodules.values():
+            if modinst.is_alive():
                 modinst.stop()
                 log.debug("Module '%s' is being stopped", name)
             else:
                 log.debug("Module '%s' already stopped", name)
 
-        for modinst in stoppedmodules.itervalues():
-            modinst.join(timeout = self.cfg.modules.timeout)
+        for modinst in stoppedmodules.values():
+            modinst.join(timeout=self.cfg.modules.timeout)
 
         return stoppedmodules
 
-    def stop(self, force = True):
+    def stop(self, force=True):
         """
         Stops all modules and shuts down the manager.
         """
         self.log().debug("Stopping")
         self.stopModules()
         Worker.stop(self, force)
-
