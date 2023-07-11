@@ -159,7 +159,7 @@ def do_main_program():
         fsload_slice(cfg.ice.slice)
 
     # noinspection PyUnresolvedReferences
-    import Murmur
+    import MumbleServer
 
     class mumoIceApp(Ice.Application):
         def __init__(self, manager):
@@ -200,7 +200,7 @@ def do_main_program():
 
             info('Connecting to Ice server (%s:%d)', cfg.ice.host, cfg.ice.port)
             base = ice.stringToProxy(prxstr)
-            self.meta = Murmur.MetaPrx.uncheckedCast(base)
+            self.meta = MumbleServer.MetaPrx.uncheckedCast(base)
 
             if cfg.ice.callback_port > 0:
                 cbp = ' -p %d' % cfg.ice.callback_port
@@ -214,7 +214,7 @@ def do_main_program():
             self.manager.setClientAdapter(adapter)
 
             metacbprx = adapter.addWithUUID(metaCallback(self))
-            self.metacb = Murmur.MetaCallbackPrx.uncheckedCast(metacbprx)
+            self.metacb = MumbleServer.MetaCallbackPrx.uncheckedCast(metacbprx)
 
             return self.attachCallbacks()
 
@@ -234,15 +234,15 @@ def do_main_program():
                     if not cfg.murmur.servers or sid in cfg.murmur.servers:
                         info('Setting callbacks for virtual server %d', sid)
                         servercbprx = self.adapter.addWithUUID(serverCallback(self.manager, server, sid))
-                        servercb = Murmur.ServerCallbackPrx.uncheckedCast(servercbprx)
+                        servercb = MumbleServer.ServerCallbackPrx.uncheckedCast(servercbprx)
                         server.addCallback(servercb)
 
-            except (Murmur.InvalidSecretException, Ice.UnknownUserException, Ice.ConnectionRefusedException) as e:
+            except (MumbleServer.InvalidSecretException, Ice.UnknownUserException, Ice.ConnectionRefusedException) as e:
                 if isinstance(e, Ice.ConnectionRefusedException):
                     error('Server refused connection')
-                elif isinstance(e, Murmur.InvalidSecretException) or \
+                elif isinstance(e, MumbleServer.InvalidSecretException) or \
                         isinstance(e, Ice.UnknownUserException) and (
-                        e.unknown == 'Murmur::InvalidSecretException'):
+                        e.unknown == 'MumbleServer::InvalidSecretException'):
                     error('Invalid ice secret')
                 else:
                     # We do not actually want to handle this one, re-raise it
@@ -300,7 +300,7 @@ def do_main_program():
 
             if not current or 'secret' not in current.ctx or current.ctx['secret'] != cfg.ice.secret:
                 error('Server transmitted invalid secret. Possible injection attempt.')
-                raise Murmur.InvalidSecretException()
+                raise MumbleServer.InvalidSecretException()
 
             return func(*args, **kws)
 
@@ -337,9 +337,9 @@ def do_main_program():
 
         return newdec
 
-    class metaCallback(Murmur.MetaCallback):
+    class metaCallback(MumbleServer.MetaCallback):
         def __init__(self, app):
-            Murmur.MetaCallback.__init__(self)
+            MumbleServer.MetaCallback.__init__(self)
             self.app = app
 
         @fortifyIceFu()
@@ -354,12 +354,12 @@ def do_main_program():
                 info('Setting callbacks for virtual server %d', server.id())
                 try:
                     servercbprx = self.app.adapter.addWithUUID(serverCallback(self.app.manager, server, sid))
-                    servercb = Murmur.ServerCallbackPrx.uncheckedCast(servercbprx)
+                    servercb = MumbleServer.ServerCallbackPrx.uncheckedCast(servercbprx)
                     server.addCallback(servercb)
 
                 # Apparently this server was restarted without us noticing
-                except (Murmur.InvalidSecretException, Ice.UnknownUserException) as e:
-                    if hasattr(e, "unknown") and e.unknown != "Murmur::InvalidSecretException":
+                except (MumbleServer.InvalidSecretException, Ice.UnknownUserException) as e:
+                    if hasattr(e, "unknown") and e.unknown != "MumbleServer::InvalidSecretException":
                         # Special handling for Murmur 1.2.2 servers with invalid slice files
                         raise e
 
@@ -399,9 +399,9 @@ def do_main_program():
 
         return new_fu
 
-    class serverCallback(Murmur.ServerCallback):
+    class serverCallback(MumbleServer.ServerCallback):
         def __init__(self, manager, server, sid):
-            Murmur.ServerCallback.__init__(self)
+            MumbleServer.ServerCallback.__init__(self)
             self.manager = manager
             self.sid = sid
             self.server = server
@@ -441,9 +441,9 @@ def do_main_program():
         @forwardServer
         def userTextMessage(self, u, m, current=None): pass
 
-    class customContextCallback(Murmur.ServerContextCallback):
+    class customContextCallback(MumbleServer.ServerContextCallback):
         def __init__(self, contextActionCallback, *ctx):
-            Murmur.ServerContextCallback.__init__(self)
+            MumbleServer.ServerContextCallback.__init__(self)
             self.cb = contextActionCallback
             self.ctx = ctx
 
@@ -457,7 +457,7 @@ def do_main_program():
     #
     info('Starting mumble moderator')
     debug('Initializing manager')
-    manager = MumoManager(Murmur, customContextCallback)
+    manager = MumoManager(MumbleServer, customContextCallback)
     manager.start()
     manager.loadModules()
     manager.startModules()
