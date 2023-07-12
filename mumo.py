@@ -159,7 +159,11 @@ def do_main_program():
         fsload_slice(cfg.ice.slice)
 
     # noinspection PyUnresolvedReferences
-    import MumbleServer
+    try:
+        import MumbleServer
+    except ModuleNotFoundError:
+        # on Mumble <1.5 try to import Murmur instead
+        import Murmur as MumbleServer
 
     class mumoIceApp(Ice.Application):
         def __init__(self, manager):
