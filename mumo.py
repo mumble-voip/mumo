@@ -162,7 +162,7 @@ def do_main_program():
     try:
         import MumbleServer
     except ModuleNotFoundError:
-        # on Mumble <1.5 try to import Murmur instead
+        # Try to import Mumble <1.5 name `Murmur` instead
         import Murmur as MumbleServer
 
     class mumoIceApp(Ice.Application):
