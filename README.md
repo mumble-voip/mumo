@@ -43,11 +43,10 @@ Currently, mumo comes with the following modules:
 ### 3rd party modules
 See [docs/third-party-modules.md](docs/third-party-modules.md)
 
-## Development
-If you have a module that you would like to see shipped with mumo or
-have any improvements or suggestions please contact us. Whether you
-prefer a pull request, visiting us in IRC in #mumble on Freenode or
-creating an issue with a diff-patch is up to you.
+## Contributing
+We appreciate contributions. For example as issue or suggestion reports and comments, change pull requests, additional modules, or extending documentation.
+
+You can talk to us in tickets or in chat in [#mumble-dev:matrix.org](https://matrix.to/#/#mumble-dev:matrix.org).
 
 ## Setting up
 To configure and run mumo take a look at the `mumo.ini` and the module
