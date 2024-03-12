@@ -26,6 +26,8 @@ is done by linking the configuration in modules-available to the
 
 An official docker image is available at https://hub.docker.com/r/mumblevoip/mumo.
 
+More information in [docker.md](docker.md).
+
 ## Modules for Mumble moderator
 
 ### Included modules
