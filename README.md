@@ -13,6 +13,7 @@ mumo requires:
 
 * python >=3.2
 * python3-zeroc-ice
+* zeroc-ice-slice
 * mumble-server >=1.2.3 (not tested with lower versions)
 
 ## Setting up
