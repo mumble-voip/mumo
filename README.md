@@ -41,7 +41,7 @@ Currently, mumo comes with the following modules:
  A debugging plugin that registers for all possible events and outputs every call with parameters into the debug log.
 
 ### 3rd party modules
-See https://wiki.mumble.info/wiki/Mumo#3rd_Party_Modules
+See [docs/third-party-modules.md](docs/third-party-modules.md)
 
 ## Development
 If you have a module that you would like to see shipped with mumo or
