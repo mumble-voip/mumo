@@ -32,30 +32,30 @@ An official docker image is available at https://hub.docker.com/r/mumblevoip/mum
 
 Currently, mumo comes with the following modules:
 
-* ***bf2***
+#### bf2
 
 Battlefield 2 game management plugin that can dynamically move players into appropriate channels and groups to fit the in-game command structure. This is achieved by using data gathered from Mumble's positional audio system and does not require cooperation from the game server.
 
-* ***idlemove***
+#### idlemove
 
 Plugin for moving players that have been idle for a configurable amount of time into an idle channel. Optionally the players can be muted/deafened on move.
 
-* ***onjoin***
+#### onjoin
 
 Moves players into a specific channel on connect regardless of which channel they were in when they left last time.
 
-* ***seen***
+#### seen
 
 Makes the server listen for a configurable keyword to ask for the last time a specific nick was seen on the server.
 
-* ***source***
+#### source
 
 Source game management plugin that can dynamically move players into on-the-fly-created channel structures representing in-game team setup.
 This is achieved by using data gathered from Mumble's positional audio system and does not require cooperation from the game server.
  
 Currently, the following source-engine-based games are supported: Team Fortress 2, Day of Defeat: Source, Counter-Strike: Source, Half-Life 2: Deathmatch.
 
-* ***test***
+#### test
 
 A debugging plugin that registers for all possible events and outputs every call with parameters into the debug log.
 
