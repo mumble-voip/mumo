@@ -6,6 +6,18 @@ To achieve this goal, tasks like Ice interface setup, basic error
 handling, configuration management, logging, and more are provided
 by mumo. Developers can focus on their specific functionality instead.
 
+## Requirements
+mumo requires:
+* python >=3.2
+* python3-zeroc-ice
+* mumble-server >=1.2.3 (not tested with lower versions)
+
+## Setting up
+To configure and run mumo take a look at the `mumo.ini` and the module
+specific configurations in `modules-available` folder. Enabling modules
+is done by linking the configuration in modules-available to the
+`modules-enabled` folder.
+
 ## Docker image
 An official docker image is available at https://hub.docker.com/r/mumblevoip/mumo.
 
@@ -43,15 +55,3 @@ See [docs/third-party-modules.md](docs/third-party-modules.md)
 We appreciate contributions. For example as issue or suggestion reports and comments, change pull requests, additional modules, or extending documentation.
 
 You can talk to us in tickets or in chat in [#mumble-dev:matrix.org](https://matrix.to/#/#mumble-dev:matrix.org).
-
-## Setting up
-To configure and run mumo take a look at the `mumo.ini` and the module
-specific configurations in `modules-available` folder. Enabling modules
-is done by linking the configuration in modules-available to the
-`modules-enabled` folder.
-
-## Requirements
-mumo requires:
-* python >=3.2
-* python3-zeroc-ice
-* mumble-server >=1.2.3 (not tested with lower versions)
