@@ -6,12 +6,8 @@ To achieve this goal, tasks like Ice interface setup, basic error
 handling, configuration management, logging, and more are provided
 by mumo. Developers can focus on their specific functionality instead.
 
-## Documentation
-The documentation can be found in our wiki, see https://wiki.mumble.info/wiki/Mumo.
-
 ## Docker image
 An official docker image is available at https://hub.docker.com/r/mumblevoip/mumo.
-All the documentation is inside the wiki.
 
 ## Modules for Mumble moderator
 ### Included modules
