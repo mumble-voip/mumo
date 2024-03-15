@@ -35,6 +35,7 @@ import unittest
 
 import config
 from . import source
+from .users import User
 
 
 class InvalidChannelExceptionMock(Exception):
@@ -191,19 +192,19 @@ class Test(unittest.TestCase):
         self.mm = ManagerMock();
         self.mserv = self.mm.meta.getServer(1)
 
-        testconfig = config.Config(None, source.source.default_config)
+        testconfig = config.Config(None, source.default_config)
         testconfig.source.database = ":memory:"
 
         # As it is hard to create the read only config structure from
         # hand use a spare one to steal from
-        spare = config.Config(None, source.source.default_config)
+        spare = config.Config(None, source.default_config)
         testconfig.__dict__['game:tf'] = spare.generic
         testconfig.__dict__['game:tf'].name = "Team Fortress 2"
         testconfig.__dict__['game:tf'].teams = ["Lobby", "Spectator", "Blue", "Red"]
         testconfig.__dict__['game:tf'].serverregex = re.compile("^\[A-1:123\]$")
         testconfig.__dict__['game:tf'].servername = "Test %(game)s %(server)s"
 
-        self.s = source.source("source", self.mm, testconfig)
+        self.s = source("source", self.mm, testconfig)
         self.mm.s = self.s
 
         # Since we don't want to run threaded if we don't have to
@@ -232,7 +233,7 @@ class Test(unittest.TestCase):
 
         mm = ManagerMock()
         INVALIDFORCEDEFAULT = ""
-        s = source.source("source", mm, INVALIDFORCEDEFAULT)
+        s = source("source", mm, INVALIDFORCEDEFAULT)
         self.assertNotEqual(s.cfg(), None)
 
     def testConfiguration(self):
@@ -412,7 +413,7 @@ class Test(unittest.TestCase):
         TEAM_RED_SID = prev + 3
         TEAM_BLUE_SID = prev + 4
 
-        user = source.User(user_state, {'team': TEAM_BLUE}, "tf", "[A-1:123]")
+        user = User(user_state, {'team': TEAM_BLUE}, "tf", "[A-1:123]")
         self.s.moveUser(self.mserv, user)
         c = mumble_server.channels
         self.assertEqual(c[prev + 1].parent, BASE_SID)
