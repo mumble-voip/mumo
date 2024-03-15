@@ -95,7 +95,7 @@ def dynload_slice(prx):
     #
     # --- Dynamically retrieves the slice file from the target server
     #
-    info("Loading slice from server")
+    info("Loading slice from server...")
     try:
         # Check IcePy version as this internal function changes between version.
         # In case it breaks with future versions use slice2py and search for
@@ -116,6 +116,7 @@ def dynload_slice(prx):
         dynslicefile = os.fdopen(dynslicefiledesc, 'w')
         dynslicefile.write(slice)
         dynslicefile.flush()
+        debug("Loading slice file %s", dynslicefilepath)
         load_slice(dynslicefilepath)
         dynslicefile.close()
         os.remove(dynslicefilepath)
@@ -139,7 +140,7 @@ def do_main_program():
     #    All of this has to go in here so we can correctly daemonize the tool
     #    without loosing the file descriptors opened by the Ice module
 
-    debug('Initializing Ice')
+    debug('Initializing Ice...')
     initdata = Ice.InitializationData()
     initdata.properties = Ice.createProperties([], initdata.properties)
     for prop, val in cfg.iceraw:
@@ -548,6 +549,9 @@ if __name__ == '__main__':
     logging.basicConfig(level=level,
                         format='%(asctime)s %(levelname)s %(name)s %(message)s',
                         stream=logfile)
+
+    info("Using config file %s", option.ini)
+    info("Logging level %d into %s", level, cfg.log.file)
 
     # As the default try to run as daemon. Silently degrade to running as a normal application if this fails
     # unless the user explicitly defined what he expected with the -a / -d parameter.
