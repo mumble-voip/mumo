@@ -196,7 +196,7 @@ class idlemove(MumoModule):
         try:
             index = self.affectedusers[server.id()]
             if state.session in index:
-                index.remove(state.session)
+                del index[state.session]
         except KeyError:
             pass
 
