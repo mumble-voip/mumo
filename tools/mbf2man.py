@@ -137,7 +137,7 @@ if __name__ == "__main__":
         print("Done")
 
     print("Import dynamically compiled murmur class...", end=' ')
-    import Murmur
+    import Murmur # pylint: disable=E0401 # pyright: ignore
 
     print("Done")
     print("Establish ice connection...", end=' ')
