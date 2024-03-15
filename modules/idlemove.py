@@ -124,7 +124,7 @@ class idlemove(MumoModule):
             self.affectedusers[sid] = {}
             index = self.affectedusers[sid]
 
-        # Check if the user is whitelisted
+        # Ignore whitelisted users
         if user.name in scfg.whitelist:
             return
 
