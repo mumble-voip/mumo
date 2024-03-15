@@ -128,12 +128,6 @@ class idlemove(MumoModule):
         if user.name in scfg.whitelist:
             return
 
-        # Remember values so we can see changes later
-        mute = user.mute
-        deafen = user.deaf
-        channel = user.channel
-
-        update = False
         over_threshold = False
 
         # Search all our stages top down for a violated treshold and pick the first
@@ -144,49 +138,47 @@ class idlemove(MumoModule):
                 source_channel = -1
 
             try:
-                threshold = scfg.threshold[i]
-                mute = scfg.mute[i]
-                deafen = scfg.deafen[i]
-                channel = scfg.channel[i]
+                afkThreshold = scfg.threshold[i]
+                afkMute = scfg.mute[i]
+                afkDeafen = scfg.deafen[i]
+                afkChannel = scfg.channel[i]
             except IndexError:
                 log.warning("Incomplete configuration for stage %d of server %i, ignored", i, server.id())
                 continue
 
-            if user.idlesecs > threshold and user.channel not in scfg.channel_whitelist and (
-                    source_channel == -1 or user.channel == source_channel or user.channel == channel):
+            if user.idlesecs > afkThreshold and user.channel not in scfg.channel_whitelist and (
+                    source_channel == -1 or user.channel == source_channel or user.channel == afkChannel):
 
                 over_threshold = True
                 # Update if state changes needed
-                if user.deaf != deafen:
-                    update = True
-                if user.mute != mute:
-                    update = True
-                if 0 <= channel != user.channel:
-                    update = True
-
-                if update:
+                if user.deaf != afkDeafen or user.mute != afkMute or 0 <= afkChannel != user.channel:
                     index[user.session] = user.channel
                     log.info(
                         '%ds > %ds: State transition for user %s (%d/%d) from mute %s -> %s / deaf %s -> %s | channel %d -> %d on server %d',
-                        user.idlesecs, threshold, user.name, user.session, user.userid, user.mute, mute, user.deaf,
-                        deafen,
-                        user.channel, channel, server.id())
+                        user.idlesecs, afkThreshold, user.name, user.session, user.userid,
+                        user.mute, afkMute,
+                        user.deaf, afkDeafen,
+                        user.channel, afkChannel,
+                        server.id())
+                    user.deaf = afkDeafen
+                    user.mute = afkMute
+                    user.channel = afkChannel
+                    server.setState(user)
                 break
 
         if not over_threshold and user.session in self.affectedusers[sid]:
-            deafen = False
-            mute = False
-            try:
-                channel = index.pop(user.session)
-            except KeyError:
-                log.warning("Missing previous channel information on restore")
-            log.info("Restore user %s (%d/%d) on server %d", user.name, user.session, user.userid, server.id())
-            update = True
-
-        if update:
-            user.deaf = deafen
-            user.mute = mute
-            user.channel = channel
+            isInAfkChannel = False
+            for i in range(len(scfg.threshold) - 1, -1, -1):
+                afkChannel = scfg.channel[i]
+                if user.channel == afkChannel:
+                    isInAfkChannel = True
+                    break
+            prevChannel = index.pop(user.session, None)
+            log.info("Restore user %s (%d/%d) on server %d, channel %d -> %d", user.name, user.session, user.userid, server.id(), user.channel, prevChannel)
+            user.deaf = False
+            user.mute = False
+            if prevChannel != None and isInAfkChannel:
+                user.channel = prevChannel
             server.setState(user)
 
     #
