@@ -121,7 +121,7 @@ class idlemove(MumoModule):
         try:
             index = self.affectedusers[sid]
         except KeyError:
-            self.affectedusers[sid] = set()
+            self.affectedusers[sid] = {}
             index = self.affectedusers[sid]
 
         # Check if the user is whitelisted
@@ -165,8 +165,7 @@ class idlemove(MumoModule):
                     update = True
 
                 if update:
-                    index.add(user.session)
-                    self.affectedusers['origchan' + str(user.userid) + str(user.name) + str(user.session)] = user.channel
+                    index[user.session] = user.channel
                     log.info(
                         '%ds > %ds: State transition for user %s (%d/%d) from mute %s -> %s / deaf %s -> %s | channel %d -> %d on server %d',
                         user.idlesecs, threshold, user.name, user.session, user.userid, user.mute, mute, user.deaf,
@@ -178,13 +177,9 @@ class idlemove(MumoModule):
             deafen = False
             mute = False
             try:
-                channel = self.affectedusers['origchan' + str(user.userid) + str(user.name) + str(user.session)]
-                del self.affectedusers['origchan' + str(user.userid) + str(user.name) + str(user.session)]
+                channel = index.pop(user.session)
             except KeyError:
-                channel = user.channel
-                log.warning("User's original channel never stored")
-                pass
-            index.remove(user.session)
+                log.warning("Missing previous channel information on restore")
             log.info("Restore user %s (%d/%d) on server %d", user.name, user.session, user.userid, server.id())
             update = True
 
@@ -229,10 +224,10 @@ class idlemove(MumoModule):
 
     def started(self, server, context=None):
         sid = server.id()
-        self.affectedusers[sid] = set()
+        self.affectedusers[sid] = {}
         self.log().debug('Handling server %d', sid)
 
     def stopped(self, server, context=None):
         sid = server.id()
-        self.affectedusers[sid] = set()
+        self.affectedusers[sid] = {}
         self.log().debug('Server %d gone', sid)
