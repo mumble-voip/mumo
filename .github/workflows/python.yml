@@ -18,9 +18,8 @@ jobs:
         pip install flake8 pylint pytest
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
     - name: Analysing the code with pylint
-      if: false
       run: |
-        pylint $(git ls-files '*.py')
+        pylint --errors-only $(git ls-files '*.py')
     - name: Lint with flake8
       run: |
         # stop the build if there are Python syntax errors or undefined names
