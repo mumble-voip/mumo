@@ -49,7 +49,7 @@ class idlemove(MumoModule):
         ('interval', float, 0.1),
         ('servers', commaSeperatedIntegers, []),
     ),
-        lambda x: re.match('(all)|(server_\d+)', x): (
+        lambda x: re.match(r'(all)|(server_\d+)', x): (
             ['threshold', commaSeperatedIntegers, [3600]],
             ('mute', commaSeperatedBool, [True]),
             ('deafen', commaSeperatedBool, [False]),
